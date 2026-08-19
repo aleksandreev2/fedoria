@@ -17,6 +17,7 @@
     "generate:types:payload": "cross-env NODE_OPTIONS=--no-deprecation payload generate:types",
     "lint": "cross-env NODE_OPTIONS=--no-deprecation eslint .",
     "payload": "cross-env NODE_OPTIONS=--no-deprecation payload",
+    "smoke:seed": "tsx src/domain/runtime-smoke-seed.ts",
     "test:domain": "tsx src/domain/publications.test.ts",
     "typecheck": "tsc --noEmit"
   },
