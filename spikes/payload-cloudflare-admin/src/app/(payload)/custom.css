@@ -1,1 +1,368 @@
-/* Keep the first acceptance pass close to stock Payload so editor UX can be judged honestly. */
+/* Operator UX spike: keep stock Payload CRUD, add focused working surfaces on top. */
+
+.fedoria-operator-nav {
+  margin: 0 0 18px;
+  padding: 12px;
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 10px;
+  background: var(--theme-elevation-50);
+  display: grid;
+  gap: 6px;
+}
+
+.fedoria-operator-nav__label {
+  padding: 0 6px 4px;
+  color: var(--theme-elevation-600);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.fedoria-operator-nav a {
+  padding: 8px 10px;
+  border-radius: 7px;
+  color: var(--theme-text);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.fedoria-operator-nav a:hover { background: var(--theme-elevation-100); }
+
+.fedoria-page { padding: 18px 0 48px; }
+.fedoria-page h1 { margin: 2px 0 8px; font-size: clamp(32px, 4vw, 52px); letter-spacing: -.04em; }
+.fedoria-page p { margin: 0; color: var(--theme-elevation-650); }
+
+.fedoria-page__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.fedoria-eyebrow {
+  color: var(--theme-elevation-600);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .16em;
+}
+
+.fedoria-header-actions,
+.fedoria-composer-actions,
+.fedoria-dry-run {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.fedoria-button,
+.fedoria-media-toolbar button,
+.fedoria-dry-run button {
+  appearance: none;
+  border: 1px solid var(--theme-elevation-900);
+  border-radius: 8px;
+  background: var(--theme-elevation-900);
+  color: var(--theme-elevation-0);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 11px 14px;
+  text-decoration: none;
+}
+
+.fedoria-button--ghost {
+  border-color: var(--theme-elevation-200);
+  background: transparent;
+  color: var(--theme-text);
+}
+
+.fedoria-button:hover,
+.fedoria-media-toolbar button:hover,
+.fedoria-dry-run button:hover { opacity: .86; }
+.fedoria-button:disabled,
+.fedoria-dry-run button:disabled { cursor: wait; opacity: .55; }
+
+.fedoria-stat-row {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.fedoria-stat-row--compact { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+.fedoria-stat {
+  min-width: 0;
+  padding: 13px 14px;
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 10px;
+  background: var(--theme-elevation-50);
+  color: var(--theme-text);
+  text-decoration: none;
+}
+
+.fedoria-stat span {
+  display: block;
+  overflow: hidden;
+  color: var(--theme-elevation-600);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+}
+
+.fedoria-stat strong { display: block; margin-top: 5px; font-size: 24px; }
+
+.fedoria-studio-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, .72fr) minmax(520px, 1.8fr) minmax(240px, .72fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.fedoria-panel {
+  min-width: 0;
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 12px;
+  background: var(--theme-elevation-0);
+  overflow: hidden;
+}
+
+.fedoria-panel__title {
+  min-height: 48px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--theme-elevation-150);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fedoria-panel__title > div { display: grid; gap: 2px; }
+.fedoria-panel__title span,
+.fedoria-panel__title a { color: var(--theme-elevation-600); font-size: 12px; }
+.fedoria-panel__title a { text-decoration: none; }
+
+.fedoria-queue__list { max-height: 720px; overflow: auto; }
+.fedoria-queue-item {
+  display: block;
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--theme-elevation-100);
+  color: var(--theme-text);
+  text-decoration: none;
+}
+.fedoria-queue-item:hover,
+.fedoria-queue-item.is-active { background: var(--theme-elevation-50); }
+.fedoria-queue-item.is-active { box-shadow: inset 3px 0 0 var(--theme-elevation-800); }
+.fedoria-queue-item__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.fedoria-queue-item__top strong { font-size: 13px; line-height: 1.35; }
+.fedoria-queue-item p {
+  margin: 7px 0;
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.fedoria-queue-item small { color: var(--theme-elevation-550); }
+
+.fedoria-status,
+.fedoria-visibility {
+  flex: none;
+  padding: 4px 6px;
+  border: 1px solid var(--theme-elevation-200);
+  border-radius: 999px;
+  background: var(--theme-elevation-100);
+  color: var(--theme-elevation-700);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.fedoria-status--failed { border-color: var(--theme-error-400); color: var(--theme-error-600); }
+.fedoria-status--ready,
+.fedoria-status--published { border-color: var(--theme-success-400); color: var(--theme-success-600); }
+
+.fedoria-inline-composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(300px, .9fr);
+  gap: 0;
+}
+
+.fedoria-inline-composer__form,
+.fedoria-inline-composer__preview { padding: 16px; }
+.fedoria-inline-composer__preview { border-left: 1px solid var(--theme-elevation-150); background: var(--theme-elevation-50); }
+
+.fedoria-inline-composer label,
+.fedoria-media-toolbar label {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.fedoria-inline-composer label > span,
+.fedoria-media-toolbar label > span {
+  color: var(--theme-elevation-650);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.fedoria-inline-composer input,
+.fedoria-inline-composer textarea,
+.fedoria-inline-composer select,
+.fedoria-media-toolbar input,
+.fedoria-media-toolbar select {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--theme-elevation-200);
+  border-radius: 8px;
+  background: var(--theme-elevation-0);
+  color: var(--theme-text);
+  font: inherit;
+  padding: 10px 11px;
+}
+
+.fedoria-inline-composer textarea { min-height: 260px; resize: vertical; line-height: 1.5; }
+.fedoria-inline-composer__row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.fedoria-phone-shell {
+  max-width: 420px;
+  margin: 2px auto 0;
+  padding: 10px;
+  border: 1px solid var(--theme-elevation-200);
+  border-radius: 18px;
+  background: var(--theme-elevation-100);
+}
+.fedoria-phone-shell__topbar {
+  padding: 5px 8px 10px;
+  color: var(--theme-elevation-600);
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+  text-transform: uppercase;
+}
+.fedoria-message-bubble {
+  padding: 14px;
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 12px;
+  background: var(--theme-elevation-0);
+}
+.fedoria-message-bubble__brand { margin-bottom: 8px; font-size: 11px; font-weight: 900; letter-spacing: .1em; }
+.fedoria-message-bubble__text { white-space: pre-wrap; font-size: 13px; line-height: 1.5; }
+.fedoria-message-bubble__meta { margin-top: 12px; color: var(--theme-elevation-550); font-size: 10px; text-align: right; }
+.fedoria-attachment-list { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+.fedoria-attachment-list span { padding: 6px 8px; border-radius: 6px; background: var(--theme-elevation-100); font-size: 10px; }
+.fedoria-preview-target { max-width: 420px; margin: 10px auto 0; color: var(--theme-elevation-600); font-size: 11px; }
+
+.fedoria-dry-run span,
+.fedoria-save-state { color: var(--theme-elevation-600); font-size: 11px; }
+.fedoria-dry-run span[data-state='ok'],
+.fedoria-save-state[data-state='saved'] { color: var(--theme-success-600); }
+.fedoria-dry-run span[data-state='error'],
+.fedoria-save-state[data-state='error'] { color: var(--theme-error-600); }
+
+.fedoria-delivery-panel { padding-bottom: 10px; }
+.fedoria-key-values { margin: 0; padding: 4px 14px 10px; }
+.fedoria-key-values > div { display: grid; grid-template-columns: 84px 1fr; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--theme-elevation-100); }
+.fedoria-key-values dt { color: var(--theme-elevation-550); font-size: 10px; text-transform: uppercase; }
+.fedoria-key-values dd { margin: 0; font-size: 12px; overflow-wrap: anywhere; }
+.fedoria-calendar-mini { margin: 8px 10px 0; border: 1px solid var(--theme-elevation-100); border-radius: 8px; overflow: hidden; }
+.fedoria-calendar-mini a { display: grid; gap: 3px; padding: 9px 10px; border-bottom: 1px solid var(--theme-elevation-100); color: var(--theme-text); text-decoration: none; }
+.fedoria-calendar-mini time { color: var(--theme-elevation-550); font-size: 10px; }
+.fedoria-calendar-mini span { font-size: 12px; }
+
+.fedoria-media-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 170px auto auto auto;
+  gap: 10px;
+  align-items: end;
+  margin: 0 0 14px;
+  padding: 12px;
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 10px;
+  background: var(--theme-elevation-50);
+}
+.fedoria-media-toolbar label { margin: 0; }
+.fedoria-media-toolbar > a { padding: 10px 5px; color: var(--theme-elevation-650); font-size: 12px; text-decoration: none; }
+.fedoria-media-toolbar .fedoria-check { display: flex; align-items: center; gap: 7px; padding-bottom: 10px; }
+.fedoria-media-toolbar .fedoria-check input { width: auto; }
+.fedoria-media-toolbar .fedoria-check span { white-space: nowrap; }
+
+.fedoria-library-summary { display: flex; align-items: baseline; gap: 6px; margin: 0 0 10px; color: var(--theme-elevation-600); font-size: 12px; }
+.fedoria-library-summary strong { color: var(--theme-text); font-size: 18px; }
+
+.fedoria-media-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+.fedoria-media-card { min-width: 0; border: 1px solid var(--theme-elevation-150); border-radius: 10px; background: var(--theme-elevation-0); overflow: hidden; }
+.fedoria-media-card__preview { position: relative; display: grid; place-items: center; height: 150px; background: var(--theme-elevation-100); text-decoration: none; overflow: hidden; }
+.fedoria-media-card__image { position: absolute; inset: 0; background-position: center; background-repeat: no-repeat; background-size: cover; }
+.fedoria-media-card__extension { color: var(--theme-elevation-500); font-size: 24px; font-weight: 900; letter-spacing: -.04em; }
+.fedoria-media-card__preview .fedoria-visibility { position: absolute; top: 8px; right: 8px; z-index: 1; }
+.fedoria-media-card__body { padding: 11px; }
+.fedoria-media-card__body > div:first-child { display: grid; gap: 3px; }
+.fedoria-media-card__body strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.fedoria-media-card__body small { overflow: hidden; color: var(--theme-elevation-550); text-overflow: ellipsis; white-space: nowrap; }
+.fedoria-usage-row,
+.fedoria-where-used { display: flex; justify-content: space-between; gap: 6px; margin-top: 10px; color: var(--theme-elevation-550); font-size: 9px; }
+.fedoria-usage-row .has-usage { color: var(--theme-success-600); font-weight: 700; }
+.fedoria-where-used { padding-top: 8px; border-top: 1px solid var(--theme-elevation-100); }
+.fedoria-where-used b { color: var(--theme-text); }
+
+.fedoria-story-canvas {
+  width: 100%;
+  height: min(72vh, 820px);
+  min-height: 560px;
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 12px;
+  background: var(--theme-elevation-50);
+  overflow: hidden;
+}
+.fedoria-story-node { width: 245px; padding: 12px; border: 1px solid var(--theme-elevation-250); border-radius: 10px; background: var(--theme-elevation-0); box-shadow: 0 6px 24px color-mix(in srgb, var(--theme-elevation-1000) 8%, transparent); }
+.fedoria-story-node__meta { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 8px; color: var(--theme-elevation-550); font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.fedoria-story-node strong { display: block; margin-bottom: 5px; font-size: 13px; line-height: 1.35; }
+.fedoria-story-node small { display: block; margin-bottom: 10px; color: var(--theme-elevation-600); line-height: 1.35; }
+.fedoria-story-node a { color: var(--theme-text); font-size: 10px; font-weight: 700; text-decoration: none; }
+.fedoria-story-node--boss { border-width: 2px; }
+.fedoria-story-node--rare { border-style: dashed; }
+
+.fedoria-empty { padding: 14px; color: var(--theme-elevation-550); font-size: 12px; }
+.fedoria-empty--large { min-height: 220px; display: grid; place-items: center; align-content: center; gap: 8px; text-align: center; }
+.fedoria-empty a { color: var(--theme-text); }
+
+@media (max-width: 1280px) {
+  .fedoria-studio-grid { grid-template-columns: 260px minmax(0, 1fr); }
+  .fedoria-delivery-panel { grid-column: 1 / -1; }
+  .fedoria-media-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@media (max-width: 980px) {
+  .fedoria-page__header { align-items: flex-start; flex-direction: column; }
+  .fedoria-stat-row,
+  .fedoria-stat-row--compact { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .fedoria-studio-grid { grid-template-columns: 1fr; }
+  .fedoria-inline-composer { grid-template-columns: 1fr; }
+  .fedoria-inline-composer__preview { border-left: 0; border-top: 1px solid var(--theme-elevation-150); }
+  .fedoria-media-toolbar { grid-template-columns: 1fr 1fr; }
+  .fedoria-media-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .fedoria-stat-row,
+  .fedoria-stat-row--compact { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fedoria-inline-composer__row { grid-template-columns: 1fr; }
+  .fedoria-media-toolbar { grid-template-columns: 1fr; }
+  .fedoria-media-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fedoria-story-canvas { min-height: 520px; }
+}

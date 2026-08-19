@@ -74,6 +74,23 @@ export default buildConfig({
     user: Users.slug,
     importMap: { baseDir: path.resolve(dirname) },
     meta: { titleSuffix: ' — Fedoria Admin Spike' },
+    components: {
+      beforeNavLinks: ['/admin/components/OperatorNav#OperatorNav'],
+      views: {
+        publicationsStudio: {
+          Component: '/admin/views/PublicationsStudio#PublicationsStudio',
+          path: '/publications-studio',
+        },
+        mediaLibrary: {
+          Component: '/admin/views/MediaLibrary#MediaLibrary',
+          path: '/media-library',
+        },
+        storyGraph: {
+          Component: '/admin/views/StoryGraph#StoryGraph',
+          path: '/story-graph',
+        },
+      },
+    },
   },
   collections: [Users, Worlds, Regions, Events, Media, Publications],
   editor: lexicalEditor(),
