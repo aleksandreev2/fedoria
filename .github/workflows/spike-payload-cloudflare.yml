@@ -197,7 +197,7 @@ jobs:
             "http://127.0.0.1:3000/api/media/file/$MEDIA_FILENAME")
           echo "Authenticated private media HTTP $MEDIA_AUTH_CODE"
           test "$MEDIA_AUTH_CODE" = '200'
-          cmp src/fixtures/spike-asset.txt /tmp/fedoria-media-auth
+          cmp src/fixtures/spike-asset.svg /tmp/fedoria-media-auth
 
           CURRENT_CHECK='complete'
           echo "Runtime smoke passed: admin=$ADMIN_CODE unauth-worlds=$WORLDS_CODE login=$LOGIN_CODE auth-worlds=$AUTH_WORLDS_CODE preview=$PREVIEW_CODE private-media=$MEDIA_UNAUTH_CODE auth-media=$MEDIA_AUTH_CODE"
