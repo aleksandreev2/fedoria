@@ -35,6 +35,7 @@ const isCLI = process.argv.some((value) => {
 })
 const isProduction = process.env.NODE_ENV === 'production'
 const dbPushEnabled = process.env.PAYLOAD_DB_PUSH !== 'false'
+let disposeLocalPlatformProxy: undefined | (() => Promise<void>)
 
 const createLog =
   (level: string, fn: typeof console.log) => (objOrMsg: object | string, msg?: string) => {
@@ -62,6 +63,12 @@ const cloudflare =
     ? await getCloudflareContextFromWrangler()
     : await getCloudflareContext({ async: true })
 
+export async function disposeCloudflarePlatformProxyForScripts() {
+  const dispose = disposeLocalPlatformProxy
+  disposeLocalPlatformProxy = undefined
+  await dispose?.()
+}
+
 export default buildConfig({
   admin: {
     user: Users.slug,
@@ -88,12 +95,15 @@ export default buildConfig({
   ],
 })
 
-function getCloudflareContextFromWrangler(): Promise<CloudflareContext> {
-  return import(/* webpackIgnore: true */ `${'__wrangler'.replaceAll('_', '')}`).then(
-    ({ getPlatformProxy }) =>
-      getPlatformProxy({
-        environment: process.env.CLOUDFLARE_ENV,
-        remoteBindings: false,
-      } satisfies GetPlatformProxyOptions),
+async function getCloudflareContextFromWrangler(): Promise<CloudflareContext> {
+  const { getPlatformProxy } = await import(
+    /* webpackIgnore: true */ `${'__wrangler'.replaceAll('_', '')}`
   )
+  const platform = await getPlatformProxy({
+    environment: process.env.CLOUDFLARE_ENV,
+    remoteBindings: false,
+  } satisfies GetPlatformProxyOptions)
+
+  disposeLocalPlatformProxy = () => platform.dispose()
+  return platform
 }
