@@ -48,14 +48,5 @@
   "engines": {
     "node": ">=24.15.0",
     "pnpm": ">=11.20.0 <12"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "rclone.js",
-      "sharp",
-      "unrs-resolver",
-      "workerd"
-    ]
   }
 }
