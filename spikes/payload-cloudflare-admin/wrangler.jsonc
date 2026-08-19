@@ -1,25 +1,30 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "main": ".open-next/worker.js",
-  "name": "fedoria-payload-admin-spike",
+  "name": "fedoria-payload-admin-spike-staging",
   "compatibility_date": "2026-08-19",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "workers_dev": true,
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  "vars": {
+    "PAYLOAD_DB_PUSH": "true",
+    "PAYLOAD_LOG_LEVEL": "info"
+  },
   "d1_databases": [
     {
       "binding": "D1",
-      "database_id": "DATABASE_ID",
-      "database_name": "fedoria-payload-admin-spike",
+      "database_id": "4321cc88-f9fa-49ed-9e04-dd041424ce0c",
+      "database_name": "fedoria-payload-admin-spike-staging",
       "remote": false
     }
   ],
   "r2_buckets": [
     {
       "binding": "R2",
-      "bucket_name": "fedoria-payload-admin-spike"
+      "bucket_name": "fedoria-payload-admin-spike-staging"
     }
   ],
   "observability": {
