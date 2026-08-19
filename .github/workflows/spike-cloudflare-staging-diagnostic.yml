@@ -121,8 +121,19 @@ jobs:
           const database = d1Rows.some((row) => row.name === process.env.D1_NAME)
           const bucket = buckets.some((row) => row.name === process.env.R2_NAME)
           const worker = scripts.some((row) => row.id === process.env.WORKER_NAME)
+          const tokenValue = process.env.CLOUDFLARE_API_TOKEN || ''
+          const accountValue = process.env.CLOUDFLARE_ACCOUNT_ID || ''
 
           process.stdout.write(JSON.stringify({
+            credentialShape: {
+              tokenStartsBearer: /^Bearer\s/i.test(tokenValue),
+              tokenHasWhitespace: /\s/.test(tokenValue),
+              tokenLooksCurrentPrefixed: tokenValue.startsWith('cfut_') || tokenValue.startsWith('cfat_'),
+              tokenLength: tokenValue.length,
+              accountIdLooksHex32: /^[0-9a-fA-F]{32}$/.test(accountValue),
+              accountIdHasWhitespace: /\s/.test(accountValue),
+              accountIdLength: accountValue.length
+            },
             token: {
               ...endpoint('token'),
               status: token?.result?.status || null
