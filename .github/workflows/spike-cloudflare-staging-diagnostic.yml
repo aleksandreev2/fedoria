@@ -32,7 +32,6 @@ jobs:
           fs.writeFileSync('.cloudflare-staging-diagnostic.json', JSON.stringify({
             status: 'started',
             runId: process.env.GITHUB_RUN_ID,
-            commit: process.env.GITHUB_SHA,
             checkedAt: new Date().toISOString()
           }, null, 2) + '\n')
           NODE
@@ -99,15 +98,15 @@ jobs:
             try { return fs.readFileSync(`/tmp/${name}.status`, 'utf8').trim() }
             catch { return '000' }
           }
-          const errors = (json) => Array.isArray(json?.errors)
-            ? json.errors.slice(0, 5).map(({ code, message }) => ({ code, message }))
+          const errorCodes = (json) => Array.isArray(json?.errors)
+            ? json.errors.slice(0, 5).map(({ code }) => code)
             : []
           const endpoint = (name) => {
             const json = readJson(name)
             return {
               http: readStatus(name),
               success: json?.success === true,
-              errors: errors(json)
+              errorCodes: errorCodes(json)
             }
           }
 
@@ -115,19 +114,13 @@ jobs:
           const d1 = readJson('d1')
           const r2 = readJson('r2')
           const workers = readJson('workers')
-          const accountSubdomain = readJson('account-subdomain')
           const workerSubdomain = readJson('worker-subdomain')
           const d1Rows = Array.isArray(d1?.result) ? d1.result : []
           const buckets = Array.isArray(r2?.result?.buckets) ? r2.result.buckets : []
           const scripts = Array.isArray(workers?.result) ? workers.result : []
-          const database = d1Rows.find((row) => row.name === process.env.D1_NAME)
-          const bucket = buckets.find((row) => row.name === process.env.R2_NAME)
-          const worker = scripts.find((row) => row.id === process.env.WORKER_NAME)
-          const subdomain = accountSubdomain?.result?.subdomain || null
-          const workersDevEnabled = workerSubdomain?.result?.enabled === true
-          const workerUrl = worker && subdomain && workersDevEnabled
-            ? `https://${process.env.WORKER_NAME}.${subdomain}.workers.dev`
-            : null
+          const database = d1Rows.some((row) => row.name === process.env.D1_NAME)
+          const bucket = buckets.some((row) => row.name === process.env.R2_NAME)
+          const worker = scripts.some((row) => row.id === process.env.WORKER_NAME)
 
           process.stdout.write(JSON.stringify({
             token: {
@@ -142,10 +135,10 @@ jobs:
               workerSubdomain: endpoint('worker-subdomain')
             },
             resources: {
-              d1: database ? { exists: true, id: database.uuid || database.id || null } : { exists: false },
-              r2: bucket ? { exists: true, name: bucket.name } : { exists: false },
-              worker: worker ? { exists: true, name: worker.id, workersDevEnabled, url: workerUrl } : { exists: false },
-              accountWorkersSubdomain: subdomain
+              d1Exists: database,
+              r2Exists: bucket,
+              workerExists: worker,
+              workersDevEnabled: workerSubdomain?.result?.enabled === true
             }
           }, null, 2))
           NODE
@@ -162,11 +155,11 @@ jobs:
           fs.writeFileSync('.cloudflare-staging-diagnostic.json', JSON.stringify({
             status: process.env.DIAGNOSTIC_STATUS,
             runId: process.env.GITHUB_RUN_ID,
-            commit: process.env.GITHUB_SHA,
             checkedAt: new Date().toISOString(),
             cloudflare
           }, null, 2) + '\n')
           NODE
+          cat .cloudflare-staging-diagnostic.json
           git add .cloudflare-staging-diagnostic.json
           if git diff --cached --quiet; then
             exit 0
