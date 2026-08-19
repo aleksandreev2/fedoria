@@ -1,0 +1,128 @@
+name: cloudflare-staging-diagnostic
+
+on:
+  push:
+    branches:
+      - 'agent/payload-cloudflare-admin-spike'
+    paths:
+      - '.github/workflows/spike-cloudflare-staging-diagnostic.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      D1_NAME: fedoria-payload-admin-spike-staging
+      R2_NAME: fedoria-payload-admin-spike-staging
+      WORKER_NAME: fedoria-payload-admin-spike-staging
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+
+      - name: Record diagnostic start
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs')
+          fs.writeFileSync('.cloudflare-staging-diagnostic.json', JSON.stringify({
+            status: 'started',
+            runId: process.env.GITHUB_RUN_ID,
+            commit: process.env.GITHUB_SHA,
+            checkedAt: new Date().toISOString()
+          }, null, 2) + '\n')
+          NODE
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .cloudflare-staging-diagnostic.json
+          git commit -m 'record Cloudflare staging diagnostic start [skip ci]'
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Require Cloudflare credentials
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+
+      - name: Inspect Cloudflare staging resources
+        run: |
+          AUTH="Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+          BASE="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID"
+
+          curl --fail --silent --show-error -H "$AUTH" \
+            "$BASE/d1/database?name=$D1_NAME&per_page=20" > /tmp/d1.json
+          curl --fail --silent --show-error -H "$AUTH" \
+            "$BASE/r2/buckets?name_contains=$R2_NAME&per_page=100" > /tmp/r2.json
+          curl --fail --silent --show-error -H "$AUTH" \
+            "$BASE/workers/scripts" > /tmp/workers.json
+          curl --fail --silent --show-error -H "$AUTH" \
+            "$BASE/workers/subdomain" > /tmp/account-subdomain.json
+
+          WORKER_EXISTS=$(node - <<'NODE'
+          const fs = require('node:fs')
+          const j = JSON.parse(fs.readFileSync('/tmp/workers.json', 'utf8'))
+          const rows = Array.isArray(j.result) ? j.result : []
+          process.stdout.write(rows.some((row) => row.id === process.env.WORKER_NAME) ? '1' : '0')
+          NODE
+          )
+
+          if [ "$WORKER_EXISTS" = '1' ]; then
+            curl --fail --silent --show-error -H "$AUTH" \
+              "$BASE/workers/scripts/$WORKER_NAME/subdomain" > /tmp/worker-subdomain.json
+          else
+            printf '%s\n' '{"success":true,"result":{"enabled":false,"previews_enabled":false}}' > /tmp/worker-subdomain.json
+          fi
+
+          node <<'NODE' > /tmp/cloudflare-summary.json
+          const fs = require('node:fs')
+          const read = (path) => JSON.parse(fs.readFileSync(path, 'utf8'))
+          const d1 = read('/tmp/d1.json')
+          const r2 = read('/tmp/r2.json')
+          const workers = read('/tmp/workers.json')
+          const accountSubdomain = read('/tmp/account-subdomain.json')
+          const workerSubdomain = read('/tmp/worker-subdomain.json')
+          const d1Rows = Array.isArray(d1.result) ? d1.result : []
+          const buckets = Array.isArray(r2.result?.buckets) ? r2.result.buckets : []
+          const scripts = Array.isArray(workers.result) ? workers.result : []
+          const database = d1Rows.find((row) => row.name === process.env.D1_NAME)
+          const bucket = buckets.find((row) => row.name === process.env.R2_NAME)
+          const worker = scripts.find((row) => row.id === process.env.WORKER_NAME)
+          const subdomain = accountSubdomain.result?.subdomain || null
+          const workersDevEnabled = workerSubdomain.result?.enabled === true
+          const workerUrl = worker && subdomain && workersDevEnabled
+            ? `https://${process.env.WORKER_NAME}.${subdomain}.workers.dev`
+            : null
+          process.stdout.write(JSON.stringify({
+            d1: database ? { exists: true, id: database.uuid || database.id || null } : { exists: false },
+            r2: bucket ? { exists: true, name: bucket.name } : { exists: false },
+            worker: worker ? { exists: true, name: worker.id, workersDevEnabled, url: workerUrl } : { exists: false },
+            accountWorkersSubdomain: subdomain
+          }, null, 2))
+          NODE
+
+      - name: Record diagnostic result
+        if: always()
+        env:
+          DIAGNOSTIC_STATUS: ${{ job.status }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs')
+          let cloudflare = null
+          try { cloudflare = JSON.parse(fs.readFileSync('/tmp/cloudflare-summary.json', 'utf8')) } catch {}
+          fs.writeFileSync('.cloudflare-staging-diagnostic.json', JSON.stringify({
+            status: process.env.DIAGNOSTIC_STATUS,
+            runId: process.env.GITHUB_RUN_ID,
+            commit: process.env.GITHUB_SHA,
+            checkedAt: new Date().toISOString(),
+            cloudflare
+          }, null, 2) + '\n')
+          NODE
+          git add .cloudflare-staging-diagnostic.json
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m 'record Cloudflare staging diagnostic result [skip ci]'
+          git push origin "HEAD:${GITHUB_REF_NAME}"
