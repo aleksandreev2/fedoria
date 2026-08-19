@@ -76,9 +76,49 @@ jobs:
 
           pnpm exec next dev -H 127.0.0.1 -p 3000 > /tmp/fedoria-payload-dev.log 2>&1 &
           SERVER_PID=$!
+          CURRENT_CHECK='server readiness'
+          ADMIN_CODE=unset
+          WORLDS_CODE=unset
+          LOGIN_CODE=unset
+          AUTH_WORLDS_CODE=unset
+          PREVIEW_CODE=unset
+          MEDIA_UNAUTH_CODE=unset
+          MEDIA_AUTH_CODE=unset
+
           cleanup() {
             kill "$SERVER_PID" 2>/dev/null || true
           }
+
+          debug_failure() {
+            echo "Runtime smoke failed during: $CURRENT_CHECK"
+            echo "HTTP codes: admin=$ADMIN_CODE unauth-worlds=$WORLDS_CODE login=$LOGIN_CODE auth-worlds=$AUTH_WORLDS_CODE preview=$PREVIEW_CODE private-media=$MEDIA_UNAUTH_CODE auth-media=$MEDIA_AUTH_CODE"
+
+            if [ -f /tmp/fedoria-login.json ]; then
+              echo 'Login response summary:'
+              node -e "const fs=require('fs'); try { const j=JSON.parse(fs.readFileSync('/tmp/fedoria-login.json','utf8')); console.log(JSON.stringify({ message:j.message, errors:j.errors, user:j.user ? { id:j.user.id, email:j.user.email } : undefined })) } catch (e) { console.log('unparseable login response') }"
+            fi
+            if [ -f /tmp/fedoria-auth-worlds.json ]; then
+              echo 'Authenticated worlds response summary:'
+              node -e "const fs=require('fs'); try { const j=JSON.parse(fs.readFileSync('/tmp/fedoria-auth-worlds.json','utf8')); console.log(JSON.stringify({ message:j.message, errors:j.errors, totalDocs:j.totalDocs, keys:Array.isArray(j.docs)?j.docs.map(d=>d.key):undefined })) } catch (e) { console.log('unparseable worlds response') }"
+            fi
+            if [ -f /tmp/fedoria-preview.json ]; then
+              echo 'Preview response:'
+              cat /tmp/fedoria-preview.json
+              echo
+            fi
+            if [ -f /tmp/fedoria-media-unauth ]; then
+              echo "Unauthenticated media response bytes: $(wc -c < /tmp/fedoria-media-unauth)"
+            fi
+            if [ -f /tmp/fedoria-media-auth ]; then
+              echo "Authenticated media response bytes: $(wc -c < /tmp/fedoria-media-auth)"
+            fi
+            if [ -f /tmp/fedoria-payload-dev.log ]; then
+              echo 'Payload dev log tail:'
+              tail -n 120 /tmp/fedoria-payload-dev.log
+            fi
+          }
+
+          trap debug_failure ERR
           trap cleanup EXIT
 
           ready=0
@@ -89,74 +129,78 @@ jobs:
             fi
             if ! kill -0 "$SERVER_PID" 2>/dev/null; then
               echo 'Payload dev server exited before becoming ready.'
-              cat /tmp/fedoria-payload-dev.log
-              exit 1
+              false
             fi
             sleep 1
           done
+          test "$ready" = '1'
+          echo 'Server ready.'
 
-          if [ "$ready" -ne 1 ]; then
-            echo 'Payload dev server did not become ready.'
-            cat /tmp/fedoria-payload-dev.log
-            exit 1
-          fi
-
+          CURRENT_CHECK='admin route'
           ADMIN_CODE=$(curl --silent --show-error --location --output /tmp/fedoria-admin.html --write-out '%{http_code}' http://127.0.0.1:3000/admin)
+          echo "Admin HTTP $ADMIN_CODE"
           test "$ADMIN_CODE" = '200'
           test -s /tmp/fedoria-admin.html
 
+          CURRENT_CHECK='unauthenticated worlds access'
           WORLDS_CODE=$(curl --silent --show-error --output /tmp/fedoria-worlds.json --write-out '%{http_code}' 'http://127.0.0.1:3000/api/worlds?limit=1')
+          echo "Unauthenticated worlds HTTP $WORLDS_CODE"
           case "$WORLDS_CODE" in
             401|403) ;;
-            *)
-              echo "Expected unauthenticated worlds API to be denied, got HTTP $WORLDS_CODE"
-              cat /tmp/fedoria-worlds.json
-              exit 1
-              ;;
+            *) false ;;
           esac
 
           EMAIL=$(node -e "const s=require('./.runtime-smoke.json'); process.stdout.write(s.email)")
           PASSWORD=$(node -e "const s=require('./.runtime-smoke.json'); process.stdout.write(s.password)")
+
+          CURRENT_CHECK='admin login'
           LOGIN_CODE=$(curl --silent --show-error --output /tmp/fedoria-login.json --write-out '%{http_code}' \
             --request POST \
             --header 'Content-Type: application/json' \
             --data "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\"}" \
             http://127.0.0.1:3000/api/users/login)
+          echo "Login HTTP $LOGIN_CODE"
           test "$LOGIN_CODE" = '200'
           TOKEN=$(node -e "const fs=require('fs'); const j=JSON.parse(fs.readFileSync('/tmp/fedoria-login.json','utf8')); if(!j.token) process.exit(1); process.stdout.write(j.token)")
 
+          CURRENT_CHECK='authenticated worlds access'
           AUTH_WORLDS_CODE=$(curl --silent --show-error --output /tmp/fedoria-auth-worlds.json --write-out '%{http_code}' \
             --header "Authorization: JWT $TOKEN" \
             'http://127.0.0.1:3000/api/worlds?limit=1')
+          echo "Authenticated worlds HTTP $AUTH_WORLDS_CODE"
           test "$AUTH_WORLDS_CODE" = '200'
           node -e "const fs=require('fs'); const j=JSON.parse(fs.readFileSync('/tmp/fedoria-auth-worlds.json','utf8')); if(j.totalDocs!==1 || j.docs[0].key!=='smoke-world') process.exit(1)"
 
+          CURRENT_CHECK='authenticated publication preview'
           PUBLICATION_ID=$(node -e "const s=require('./.runtime-smoke.json'); process.stdout.write(String(s.publicationId))")
           PREVIEW_CODE=$(curl --silent --show-error --output /tmp/fedoria-preview.json --write-out '%{http_code}' \
             --request POST \
             --header "Authorization: JWT $TOKEN" \
             "http://127.0.0.1:3000/api/publications/$PUBLICATION_ID/test-preview")
+          echo "Publication preview HTTP $PREVIEW_CODE"
           test "$PREVIEW_CODE" = '200'
           node -e "const fs=require('fs'); const j=JSON.parse(fs.readFileSync('/tmp/fedoria-preview.json','utf8')); if(j.dryRun!==true || j.attachmentCount!==1 || j.target?.type!=='world') process.exit(1)"
 
+          CURRENT_CHECK='private media unauthenticated access'
           MEDIA_FILENAME=$(node -e "const s=require('./.runtime-smoke.json'); process.stdout.write(s.mediaFilename)")
           MEDIA_UNAUTH_CODE=$(curl --silent --show-error --output /tmp/fedoria-media-unauth --write-out '%{http_code}' \
             "http://127.0.0.1:3000/api/media/file/$MEDIA_FILENAME")
+          echo "Unauthenticated private media HTTP $MEDIA_UNAUTH_CODE"
           case "$MEDIA_UNAUTH_CODE" in
             401|403) ;;
-            *)
-              echo "Expected private media to be denied without auth, got HTTP $MEDIA_UNAUTH_CODE"
-              exit 1
-              ;;
+            *) false ;;
           esac
 
+          CURRENT_CHECK='private media authenticated access'
           MEDIA_AUTH_CODE=$(curl --silent --show-error --output /tmp/fedoria-media-auth --write-out '%{http_code}' \
             --header "Authorization: JWT $TOKEN" \
             "http://127.0.0.1:3000/api/media/file/$MEDIA_FILENAME")
+          echo "Authenticated private media HTTP $MEDIA_AUTH_CODE"
           test "$MEDIA_AUTH_CODE" = '200'
           cmp src/fixtures/spike-asset.txt /tmp/fedoria-media-auth
 
-          echo "Admin=$ADMIN_CODE unauth-worlds=$WORLDS_CODE auth-worlds=$AUTH_WORLDS_CODE preview=$PREVIEW_CODE private-media=$MEDIA_UNAUTH_CODE auth-media=$MEDIA_AUTH_CODE"
+          CURRENT_CHECK='complete'
+          echo "Runtime smoke passed: admin=$ADMIN_CODE unauth-worlds=$WORLDS_CODE login=$LOGIN_CODE auth-worlds=$AUTH_WORLDS_CODE preview=$PREVIEW_CODE private-media=$MEDIA_UNAUTH_CODE auth-media=$MEDIA_AUTH_CODE"
 
       - name: Payload / Next build
         run: pnpm run build
