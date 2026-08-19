@@ -1,5 +1,65 @@
 {
-  "status": "started",
+  "status": "success",
   "runId": "32282350750",
-  "checkedAt": "2026-08-19T17:34:18.957Z"
+  "checkedAt": "2026-08-19T17:34:24.864Z",
+  "cloudflare": {
+    "credentialShape": {
+      "tokenStartsBearer": false,
+      "tokenHasWhitespace": false,
+      "tokenLooksCurrentPrefixed": false,
+      "tokenLength": 32,
+      "accountIdLooksHex32": false,
+      "accountIdHasWhitespace": false,
+      "accountIdLength": 53
+    },
+    "token": {
+      "http": "400",
+      "success": false,
+      "errorCodes": [
+        6003
+      ],
+      "status": null
+    },
+    "endpoints": {
+      "d1": {
+        "http": "404",
+        "success": false,
+        "errorCodes": [
+          7003
+        ]
+      },
+      "r2": {
+        "http": "404",
+        "success": false,
+        "errorCodes": [
+          7003
+        ]
+      },
+      "workers": {
+        "http": "404",
+        "success": false,
+        "errorCodes": [
+          7003
+        ]
+      },
+      "accountSubdomain": {
+        "http": "404",
+        "success": false,
+        "errorCodes": [
+          7003
+        ]
+      },
+      "workerSubdomain": {
+        "http": "000",
+        "success": false,
+        "errorCodes": []
+      }
+    },
+    "resources": {
+      "d1Exists": false,
+      "r2Exists": false,
+      "workerExists": false,
+      "workersDevEnabled": false
+    }
+  }
 }
