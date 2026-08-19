@@ -18,6 +18,8 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    env:
+      PAYLOAD_SECRET: ci-spike-secret-not-for-production
     defaults:
       run:
         working-directory: spikes/payload-cloudflare-admin
@@ -53,6 +55,65 @@ jobs:
 
       - name: Typecheck
         run: pnpm run typecheck
+
+      - name: Local D1 migration lifecycle
+        env:
+          PAYLOAD_DB_PUSH: 'false'
+        run: |
+          rm -rf .wrangler/state src/migrations
+          pnpm payload migrate:create spike-initial --force-accept-warning
+          pnpm payload migrate
+          pnpm payload migrate:status
+          test -f src/migrations/index.ts
+
+      - name: Runtime smoke with local D1 push
+        env:
+          PAYLOAD_DB_PUSH: 'true'
+        run: |
+          rm -rf .wrangler/state
+          pnpm exec next dev -H 127.0.0.1 -p 3000 > /tmp/fedoria-payload-dev.log 2>&1 &
+          SERVER_PID=$!
+          cleanup() {
+            kill "$SERVER_PID" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          ready=0
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error http://127.0.0.1:3000/ > /tmp/fedoria-root.html; then
+              ready=1
+              break
+            fi
+            if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+              echo 'Payload dev server exited before becoming ready.'
+              cat /tmp/fedoria-payload-dev.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+          if [ "$ready" -ne 1 ]; then
+            echo 'Payload dev server did not become ready.'
+            cat /tmp/fedoria-payload-dev.log
+            exit 1
+          fi
+
+          ADMIN_CODE=$(curl --silent --show-error --location --output /tmp/fedoria-admin.html --write-out '%{http_code}' http://127.0.0.1:3000/admin)
+          test "$ADMIN_CODE" = '200'
+          test -s /tmp/fedoria-admin.html
+
+          WORLDS_CODE=$(curl --silent --show-error --output /tmp/fedoria-worlds.json --write-out '%{http_code}' 'http://127.0.0.1:3000/api/worlds?limit=1')
+          case "$WORLDS_CODE" in
+            401|403) ;;
+            *)
+              echo "Expected unauthenticated worlds API to be denied, got HTTP $WORLDS_CODE"
+              cat /tmp/fedoria-worlds.json
+              cat /tmp/fedoria-payload-dev.log
+              exit 1
+              ;;
+          esac
+
+          echo "Admin HTTP $ADMIN_CODE; unauthenticated worlds API HTTP $WORLDS_CODE"
 
       - name: Payload / Next build
         run: pnpm run build
