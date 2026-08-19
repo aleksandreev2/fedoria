@@ -48,7 +48,7 @@ export function PublicationComposer(props: Props) {
       })
 
       if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { message?: string } | null
+        const body = (await response.json().catch((): null => null)) as { message?: string } | null
         throw new Error(body?.message || `HTTP ${response.status}`)
       }
 
