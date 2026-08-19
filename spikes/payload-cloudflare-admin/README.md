@@ -46,6 +46,8 @@ The repository CI runs the same validation without deploying anything.
 
 `wrangler.jsonc` contains placeholder D1/R2 resource identifiers. Do not replace them with production resources for this spike. A real remote acceptance test should use dedicated disposable/staging resources and a Wrangler secret for `PAYLOAD_SECRET`.
 
+Staging rollout is handled by `.github/workflows/spike-payload-cloudflare-staging.yml`; it provisions dedicated staging D1/R2 resources and does not target production resources.
+
 ## Publication preview endpoint
 
 Authenticated editors can request:
