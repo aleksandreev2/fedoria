@@ -35,6 +35,9 @@ const isCLI = process.argv.some((value) => {
 })
 const isProduction = process.env.NODE_ENV === 'production'
 const dbPushEnabled = process.env.PAYLOAD_DB_PUSH !== 'false'
+const cloudflareEnvironment = process.env.CLOUDFLARE_ENV
+const cloudflareConfigPath = process.env.CLOUDFLARE_WRANGLER_CONFIG
+const remoteBindingsEnabled = process.env.CLOUDFLARE_REMOTE_BINDINGS === 'true'
 let disposeLocalPlatformProxy: undefined | (() => Promise<void>)
 
 const createLog =
@@ -117,8 +120,9 @@ async function getCloudflareContextFromWrangler(): Promise<CloudflareContext> {
     /* webpackIgnore: true */ `${'__wrangler'.replaceAll('_', '')}`
   )
   const platform = await getPlatformProxy({
-    environment: process.env.CLOUDFLARE_ENV,
-    remoteBindings: false,
+    environment: cloudflareEnvironment,
+    configPath: cloudflareConfigPath,
+    remoteBindings: remoteBindingsEnabled,
   } satisfies GetPlatformProxyOptions)
 
   disposeLocalPlatformProxy = () => platform.dispose()

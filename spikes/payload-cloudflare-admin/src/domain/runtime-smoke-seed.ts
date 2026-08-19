@@ -8,9 +8,13 @@ import config, { disposeCloudflarePlatformProxyForScripts } from '../payload.con
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 const fixturePath = path.resolve(dirname, '../fixtures/spike-asset.svg')
 const statePath = path.resolve(process.cwd(), '.runtime-smoke.json')
+const smokeNamespace = process.env.SMOKE_NAMESPACE?.trim()
+const suffix = smokeNamespace ? `-${smokeNamespace}` : ''
+const smokeKey = (value: string) => `${value}${suffix}`
 
-const email = 'spike-admin@example.test'
-const password = 'SpikePassword123!'
+const email = process.env.SMOKE_EMAIL || 'spike-admin@example.test'
+const password = process.env.SMOKE_PASSWORD || 'SpikePassword123!'
+const remoteBindingsEnabled = process.env.CLOUDFLARE_REMOTE_BINDINGS === 'true'
 
 const payload = await getPayload({ config })
 let mediaFilename = ''
@@ -25,7 +29,7 @@ try {
     collection: 'worlds',
     data: {
       name: 'Smoke World',
-      key: 'smoke-world',
+      key: smokeKey('smoke-world'),
       summary: 'Disposable CI world.',
       _status: 'published'
     }
@@ -35,7 +39,7 @@ try {
     collection: 'regions',
     data: {
       name: 'Smoke Harbor',
-      key: 'smoke-harbor',
+      key: smokeKey('smoke-harbor'),
       world: world.id,
       summary: 'Disposable CI region for operator UX.',
       _status: 'published'
@@ -58,7 +62,7 @@ try {
     collection: 'events',
     data: {
       title: 'Smoke Boss',
-      key: 'smoke-boss',
+      key: smokeKey('smoke-boss'),
       world: world.id,
       region: region.id,
       kind: 'boss',
@@ -79,7 +83,7 @@ try {
       ],
       chronicle: {
         eligible: true,
-        worldFirstKey: 'smoke-boss-first',
+        worldFirstKey: smokeKey('smoke-boss-first'),
         announcementTemplate: 'The smoke-test boss was defeated.'
       },
       _status: 'published'
@@ -90,7 +94,7 @@ try {
     collection: 'events',
     data: {
       title: 'Smoke Harbor Entry',
-      key: 'smoke-harbor-entry',
+      key: smokeKey('smoke-harbor-entry'),
       world: world.id,
       region: region.id,
       kind: 'story',
@@ -128,13 +132,13 @@ try {
       parseMode: 'plain',
       attachments: [media.id],
       targetType: 'world',
-      telegramTarget: 'smoke-world',
+      telegramTarget: smokeKey('smoke-world'),
       world: world.id,
       linkedEvent: entryEvent.id,
       language: 'ru',
       scheduledAt: '2099-01-01T12:00:00.000Z',
       attempts: 0,
-      idempotencyKey: 'runtime-smoke-publication'
+      idempotencyKey: smokeKey('runtime-smoke-publication')
     }
   })
 
@@ -146,6 +150,7 @@ try {
         password,
         userId: user.id,
         worldId: world.id,
+        worldKey: smokeKey('smoke-world'),
         regionId: region.id,
         mediaId: media.id,
         mediaFilename,
@@ -167,17 +172,19 @@ try {
 }
 
 const persistedPlatform = await getPlatformProxy<CloudflareEnv>({
-  persist: true,
-  remoteBindings: false
+  environment: process.env.CLOUDFLARE_ENV,
+  configPath: process.env.CLOUDFLARE_WRANGLER_CONFIG,
+  persist: remoteBindingsEnabled ? false : true,
+  remoteBindings: remoteBindingsEnabled
 })
 
 try {
   const listing = await persistedPlatform.env.R2.list({ limit: 100 })
   const keys = listing.objects.map((object) => object.key)
-  console.log(`persisted local R2 keys after proxy restart: ${JSON.stringify(keys)}`)
+  console.log(`persisted ${remoteBindingsEnabled ? 'remote' : 'local'} R2 object count: ${keys.length}`)
 
   if (keys.length === 0) {
-    throw new Error('Payload media metadata was created, but no object persisted to local R2.')
+    throw new Error('Payload media metadata was created, but no object persisted to R2.')
   }
 
   if (mediaFilename && !keys.includes(mediaFilename)) {

@@ -1,0 +1,230 @@
+name: payload-cloudflare-staging-deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'agent/payload-cloudflare-admin-spike'
+    paths:
+      - 'spikes/payload-cloudflare-admin/**'
+      - '.github/workflows/spike-payload-cloudflare-staging.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: payload-cloudflare-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      PAYLOAD_SECRET_STAGING: ${{ secrets.PAYLOAD_SECRET_STAGING }}
+      D1_NAME: fedoria-payload-admin-spike-staging
+      R2_NAME: fedoria-payload-admin-spike-staging
+    defaults:
+      run:
+        working-directory: spikes/payload-cloudflare-admin
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: '24.15.0'
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.20.0 --activate
+          pnpm --version
+
+      - name: Require staging credentials
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$PAYLOAD_SECRET_STAGING"
+
+      - name: Install
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Verify Cloudflare identity
+        run: pnpm exec wrangler whoami
+
+      - name: Validate source
+        env:
+          PAYLOAD_SECRET: ci-staging-build-secret-not-deployed
+        run: |
+          pnpm run check
+          pnpm run build:cloudflare
+
+      - name: Provision or reuse staging D1 and R2
+        run: |
+          find_d1_id() {
+            pnpm exec wrangler d1 list --json | node -e '
+              const fs = require("node:fs")
+              const rows = JSON.parse(fs.readFileSync(0, "utf8"))
+              const db = rows.find((row) => row.name === process.env.D1_NAME)
+              if (db?.uuid) process.stdout.write(db.uuid)
+              else if (db?.id) process.stdout.write(db.id)
+            '
+          }
+
+          D1_ID=$(find_d1_id)
+          if [ -z "$D1_ID" ]; then
+            pnpm exec wrangler d1 create "$D1_NAME"
+            D1_ID=$(find_d1_id)
+          fi
+          test -n "$D1_ID"
+          echo "STAGING_D1_ID=$D1_ID" >> "$GITHUB_ENV"
+
+          if ! pnpm exec wrangler r2 bucket info "$R2_NAME" --json > /tmp/fedoria-r2-info.json 2>/dev/null; then
+            pnpm exec wrangler r2 bucket create "$R2_NAME"
+            pnpm exec wrangler r2 bucket info "$R2_NAME" --json > /tmp/fedoria-r2-info.json
+          fi
+
+          STAGING_D1_ID="$D1_ID" node scripts/write-staging-wrangler.mjs
+          pnpm exec wrangler types --config wrangler.staging.generated.jsonc --env-interface CloudflareStagingEnv /tmp/cloudflare-staging-env.d.ts
+
+      - name: Prepare staging secret file
+        run: |
+          node -e '
+            const fs = require("node:fs")
+            const value = process.env.PAYLOAD_SECRET_STAGING
+            if (!value) process.exit(1)
+            fs.writeFileSync("/tmp/fedoria-staging-secrets.json", JSON.stringify({ PAYLOAD_SECRET: value }))
+          '
+          chmod 600 /tmp/fedoria-staging-secrets.json
+
+      - name: Staging dry run with real bindings
+        run: pnpm exec wrangler deploy --config wrangler.staging.generated.jsonc --secrets-file /tmp/fedoria-staging-secrets.json --dry-run
+
+      - name: Generate and apply initial staging migration
+        env:
+          PAYLOAD_SECRET: ${{ secrets.PAYLOAD_SECRET_STAGING }}
+        run: |
+          rm -rf .wrangler/state src/migrations
+          PAYLOAD_DB_PUSH=false CLOUDFLARE_REMOTE_BINDINGS=false pnpm payload migrate:create staging-initial --force-accept-warning
+          test -f src/migrations/index.ts
+
+          PAYLOAD_DB_PUSH=false \
+          CLOUDFLARE_REMOTE_BINDINGS=true \
+          CLOUDFLARE_WRANGLER_CONFIG=wrangler.staging.generated.jsonc \
+          pnpm payload migrate
+
+      - name: Seed disposable remote smoke data
+        env:
+          PAYLOAD_SECRET: ${{ secrets.PAYLOAD_SECRET_STAGING }}
+        run: |
+          SMOKE_NAMESPACE="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          SMOKE_EMAIL="spike-admin+${SMOKE_NAMESPACE}@example.test"
+          SMOKE_PASSWORD=$(node -e "process.stdout.write(require('node:crypto').randomBytes(24).toString('base64url'))")
+          echo "::add-mask::$SMOKE_PASSWORD"
+          echo "SMOKE_NAMESPACE=$SMOKE_NAMESPACE" >> "$GITHUB_ENV"
+          echo "SMOKE_EMAIL=$SMOKE_EMAIL" >> "$GITHUB_ENV"
+          echo "SMOKE_PASSWORD=$SMOKE_PASSWORD" >> "$GITHUB_ENV"
+
+          PAYLOAD_DB_PUSH=false \
+          CLOUDFLARE_REMOTE_BINDINGS=true \
+          CLOUDFLARE_WRANGLER_CONFIG=wrangler.staging.generated.jsonc \
+          SMOKE_NAMESPACE="$SMOKE_NAMESPACE" \
+          SMOKE_EMAIL="$SMOKE_EMAIL" \
+          SMOKE_PASSWORD="$SMOKE_PASSWORD" \
+          pnpm run smoke:seed
+
+      - name: Deploy staging Worker
+        run: |
+          pnpm exec wrangler deploy \
+            --config wrangler.staging.generated.jsonc \
+            --secrets-file /tmp/fedoria-staging-secrets.json \
+            | tee /tmp/fedoria-staging-deploy.log
+
+          WORKER_URL=$(grep -Eo 'https://[-a-zA-Z0-9.]+\.workers\.dev' /tmp/fedoria-staging-deploy.log | tail -n 1)
+          test -n "$WORKER_URL"
+          echo "WORKER_URL=$WORKER_URL" >> "$GITHUB_ENV"
+          echo "Staging Worker deployed to $WORKER_URL"
+
+      - name: Remote staging smoke and logs
+        run: |
+          pnpm exec wrangler tail --config wrangler.staging.generated.jsonc --format json > /tmp/fedoria-staging-tail.log 2>&1 &
+          TAIL_PID=$!
+          cleanup() {
+            kill "$TAIL_PID" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          sleep 2
+
+          ROOT_CODE=$(curl --silent --show-error --location --output /tmp/fedoria-staging-root.html --write-out '%{http_code}' "$WORKER_URL/")
+          echo "Root HTTP $ROOT_CODE"
+          test "$ROOT_CODE" = '200'
+
+          LOGIN_CODE=$(curl --silent --show-error --output /tmp/fedoria-staging-login.json --write-out '%{http_code}' \
+            --cookie-jar /tmp/fedoria-staging-cookies.txt \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --data "{\"email\":\"$SMOKE_EMAIL\",\"password\":\"$SMOKE_PASSWORD\"}" \
+            "$WORKER_URL/api/users/login")
+          echo "Login HTTP $LOGIN_CODE"
+          test "$LOGIN_CODE" = '200'
+          TOKEN=$(node -e "const fs=require('node:fs'); const j=JSON.parse(fs.readFileSync('/tmp/fedoria-staging-login.json','utf8')); if(!j.token) process.exit(1); process.stdout.write(j.token)")
+
+          WORLD_KEY=$(node -e "const s=require('./.runtime-smoke.json'); process.stdout.write(s.worldKey)")
+          WORLDS_CODE=$(curl --silent --show-error --get --output /tmp/fedoria-staging-worlds.json --write-out '%{http_code}' \
+            --header "Authorization: JWT $TOKEN" \
+            --data-urlencode "where[key][equals]=$WORLD_KEY" \
+            --data-urlencode 'limit=5' \
+            "$WORKER_URL/api/worlds")
+          echo "Worlds HTTP $WORLDS_CODE"
+          test "$WORLDS_CODE" = '200'
+          node -e "const fs=require('node:fs'); const s=require('./.runtime-smoke.json'); const j=JSON.parse(fs.readFileSync('/tmp/fedoria-staging-worlds.json','utf8')); if(!j.docs?.some((doc)=>doc.key===s.worldKey)) process.exit(1)"
+
+          PUBLICATION_ID=$(node -e "const s=require('./.runtime-smoke.json'); process.stdout.write(String(s.publicationId))")
+          PREVIEW_CODE=$(curl --silent --show-error --output /tmp/fedoria-staging-preview.json --write-out '%{http_code}' \
+            --request POST \
+            --header "Authorization: JWT $TOKEN" \
+            "$WORKER_URL/api/publications/$PUBLICATION_ID/test-preview")
+          echo "Preview HTTP $PREVIEW_CODE"
+          test "$PREVIEW_CODE" = '200'
+
+          for route in publications-studio media-library story-graph; do
+            CODE=$(curl --silent --show-error --location --output "/tmp/fedoria-staging-${route}.html" --write-out '%{http_code}' \
+              --cookie /tmp/fedoria-staging-cookies.txt \
+              "$WORKER_URL/admin/$route")
+            echo "$route HTTP $CODE"
+            test "$CODE" = '200'
+          done
+          grep -q 'Smoke Publication' /tmp/fedoria-staging-publications-studio.html
+          grep -q 'Smoke Asset' /tmp/fedoria-staging-media-library.html
+          grep -q 'Smoke Harbor Entry' /tmp/fedoria-staging-story-graph.html
+          grep -q 'Smoke Boss' /tmp/fedoria-staging-story-graph.html
+
+          MEDIA_FILENAME=$(node -e "const s=require('./.runtime-smoke.json'); process.stdout.write(s.mediaFilename)")
+          MEDIA_UNAUTH_CODE=$(curl --silent --show-error --output /tmp/fedoria-staging-media-unauth --write-out '%{http_code}' \
+            "$WORKER_URL/api/media/file/$MEDIA_FILENAME")
+          echo "Private media unauthenticated HTTP $MEDIA_UNAUTH_CODE"
+          case "$MEDIA_UNAUTH_CODE" in
+            401|403) ;;
+            *) false ;;
+          esac
+
+          MEDIA_AUTH_CODE=$(curl --silent --show-error --output /tmp/fedoria-staging-media-auth --write-out '%{http_code}' \
+            --header "Authorization: JWT $TOKEN" \
+            "$WORKER_URL/api/media/file/$MEDIA_FILENAME")
+          echo "Private media authenticated HTTP $MEDIA_AUTH_CODE"
+          test "$MEDIA_AUTH_CODE" = '200'
+          cmp src/fixtures/spike-asset.svg /tmp/fedoria-staging-media-auth
+
+          sleep 2
+          cleanup
+          trap - EXIT
+          echo 'Cloudflare tail sample:'
+          tail -n 80 /tmp/fedoria-staging-tail.log || true
+
+      - name: Record staging Worker versions
+        if: always()
+        run: pnpm exec wrangler versions list --config wrangler.staging.generated.jsonc || true
