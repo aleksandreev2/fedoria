@@ -8,7 +8,7 @@
   "packageManager": "pnpm@11.20.0",
   "scripts": {
     "build": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" next build --webpack",
-    "build:cloudflare": "opennextjs-cloudflare build",
+    "build:cloudflare": "pnpm run generate:types:cloudflare && opennextjs-cloudflare build",
     "deploy:cloudflare": "opennextjs-cloudflare deploy",
     "upload:cloudflare": "opennextjs-cloudflare upload",
     "check": "pnpm run generate:types && pnpm run generate:importmap && pnpm run test:domain && pnpm run lint && pnpm run typecheck",
