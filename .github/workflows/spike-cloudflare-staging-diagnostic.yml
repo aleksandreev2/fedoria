@@ -64,6 +64,7 @@ jobs:
           } catch {}
           NODE
           )
+          export D1_ID
 
           if [ -n "$D1_ID" ]; then
             D1_SCHEMA_CODE=$(curl --silent --show-error --max-time 20 \
@@ -158,6 +159,7 @@ jobs:
             },
             resources: {
               d1Exists: d1Rows.some((row) => row.name === process.env.D1_NAME),
+              d1Id: process.env.D1_ID || null,
               d1TableNames: schemaRows.map((row) => row.name).filter(Boolean),
               r2Exists: buckets.some((row) => row.name === process.env.R2_NAME),
               workerExists: scripts.some((row) => row.id === process.env.WORKER_NAME),
