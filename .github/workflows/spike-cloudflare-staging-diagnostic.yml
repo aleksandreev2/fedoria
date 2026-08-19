@@ -50,56 +50,103 @@ jobs:
       - name: Inspect Cloudflare staging resources
         run: |
           AUTH="Authorization: Bearer $CLOUDFLARE_API_TOKEN"
-          BASE="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID"
+          API="https://api.cloudflare.com/client/v4"
+          BASE="$API/accounts/$CLOUDFLARE_ACCOUNT_ID"
 
-          curl --fail --silent --show-error -H "$AUTH" \
-            "$BASE/d1/database?name=$D1_NAME&per_page=20" > /tmp/d1.json
-          curl --fail --silent --show-error -H "$AUTH" \
-            "$BASE/r2/buckets?name_contains=$R2_NAME&per_page=100" > /tmp/r2.json
-          curl --fail --silent --show-error -H "$AUTH" \
-            "$BASE/workers/scripts" > /tmp/workers.json
-          curl --fail --silent --show-error -H "$AUTH" \
-            "$BASE/workers/subdomain" > /tmp/account-subdomain.json
+          request() {
+            NAME="$1"
+            URL="$2"
+            CODE=$(curl --silent --show-error --max-time 20 \
+              -H "$AUTH" \
+              --output "/tmp/${NAME}.json" \
+              --write-out '%{http_code}' \
+              "$URL") || CODE='000'
+            printf '%s' "$CODE" > "/tmp/${NAME}.status"
+          }
+
+          request token "$API/user/tokens/verify"
+          request d1 "$BASE/d1/database?name=$D1_NAME&per_page=20"
+          request r2 "$BASE/r2/buckets?name_contains=$R2_NAME&per_page=100"
+          request workers "$BASE/workers/scripts"
+          request account-subdomain "$BASE/workers/subdomain"
 
           WORKER_EXISTS=$(node - <<'NODE'
           const fs = require('node:fs')
-          const j = JSON.parse(fs.readFileSync('/tmp/workers.json', 'utf8'))
-          const rows = Array.isArray(j.result) ? j.result : []
-          process.stdout.write(rows.some((row) => row.id === process.env.WORKER_NAME) ? '1' : '0')
+          try {
+            const j = JSON.parse(fs.readFileSync('/tmp/workers.json', 'utf8'))
+            const rows = Array.isArray(j.result) ? j.result : []
+            process.stdout.write(rows.some((row) => row.id === process.env.WORKER_NAME) ? '1' : '0')
+          } catch {
+            process.stdout.write('0')
+          }
           NODE
           )
 
           if [ "$WORKER_EXISTS" = '1' ]; then
-            curl --fail --silent --show-error -H "$AUTH" \
-              "$BASE/workers/scripts/$WORKER_NAME/subdomain" > /tmp/worker-subdomain.json
+            request worker-subdomain "$BASE/workers/scripts/$WORKER_NAME/subdomain"
           else
-            printf '%s\n' '{"success":true,"result":{"enabled":false,"previews_enabled":false}}' > /tmp/worker-subdomain.json
+            printf '%s' '000' > /tmp/worker-subdomain.status
+            printf '%s\n' '{"success":false,"result":null,"errors":[]}' > /tmp/worker-subdomain.json
           fi
 
           node <<'NODE' > /tmp/cloudflare-summary.json
           const fs = require('node:fs')
-          const read = (path) => JSON.parse(fs.readFileSync(path, 'utf8'))
-          const d1 = read('/tmp/d1.json')
-          const r2 = read('/tmp/r2.json')
-          const workers = read('/tmp/workers.json')
-          const accountSubdomain = read('/tmp/account-subdomain.json')
-          const workerSubdomain = read('/tmp/worker-subdomain.json')
-          const d1Rows = Array.isArray(d1.result) ? d1.result : []
-          const buckets = Array.isArray(r2.result?.buckets) ? r2.result.buckets : []
-          const scripts = Array.isArray(workers.result) ? workers.result : []
+          const readJson = (name) => {
+            try { return JSON.parse(fs.readFileSync(`/tmp/${name}.json`, 'utf8')) }
+            catch { return null }
+          }
+          const readStatus = (name) => {
+            try { return fs.readFileSync(`/tmp/${name}.status`, 'utf8').trim() }
+            catch { return '000' }
+          }
+          const errors = (json) => Array.isArray(json?.errors)
+            ? json.errors.slice(0, 5).map(({ code, message }) => ({ code, message }))
+            : []
+          const endpoint = (name) => {
+            const json = readJson(name)
+            return {
+              http: readStatus(name),
+              success: json?.success === true,
+              errors: errors(json)
+            }
+          }
+
+          const token = readJson('token')
+          const d1 = readJson('d1')
+          const r2 = readJson('r2')
+          const workers = readJson('workers')
+          const accountSubdomain = readJson('account-subdomain')
+          const workerSubdomain = readJson('worker-subdomain')
+          const d1Rows = Array.isArray(d1?.result) ? d1.result : []
+          const buckets = Array.isArray(r2?.result?.buckets) ? r2.result.buckets : []
+          const scripts = Array.isArray(workers?.result) ? workers.result : []
           const database = d1Rows.find((row) => row.name === process.env.D1_NAME)
           const bucket = buckets.find((row) => row.name === process.env.R2_NAME)
           const worker = scripts.find((row) => row.id === process.env.WORKER_NAME)
-          const subdomain = accountSubdomain.result?.subdomain || null
-          const workersDevEnabled = workerSubdomain.result?.enabled === true
+          const subdomain = accountSubdomain?.result?.subdomain || null
+          const workersDevEnabled = workerSubdomain?.result?.enabled === true
           const workerUrl = worker && subdomain && workersDevEnabled
             ? `https://${process.env.WORKER_NAME}.${subdomain}.workers.dev`
             : null
+
           process.stdout.write(JSON.stringify({
-            d1: database ? { exists: true, id: database.uuid || database.id || null } : { exists: false },
-            r2: bucket ? { exists: true, name: bucket.name } : { exists: false },
-            worker: worker ? { exists: true, name: worker.id, workersDevEnabled, url: workerUrl } : { exists: false },
-            accountWorkersSubdomain: subdomain
+            token: {
+              ...endpoint('token'),
+              status: token?.result?.status || null
+            },
+            endpoints: {
+              d1: endpoint('d1'),
+              r2: endpoint('r2'),
+              workers: endpoint('workers'),
+              accountSubdomain: endpoint('account-subdomain'),
+              workerSubdomain: endpoint('worker-subdomain')
+            },
+            resources: {
+              d1: database ? { exists: true, id: database.uuid || database.id || null } : { exists: false },
+              r2: bucket ? { exists: true, name: bucket.name } : { exists: false },
+              worker: worker ? { exists: true, name: worker.id, workersDevEnabled, url: workerUrl } : { exists: false },
+              accountWorkersSubdomain: subdomain
+            }
           }, null, 2))
           NODE
 
