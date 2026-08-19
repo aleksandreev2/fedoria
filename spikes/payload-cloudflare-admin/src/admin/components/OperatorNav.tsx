@@ -1,10 +1,12 @@
+import Link from 'next/link'
+
 export function OperatorNav() {
   return (
     <div className="fedoria-operator-nav" aria-label="Fedoria operator tools">
       <div className="fedoria-operator-nav__label">Operator tools</div>
-      <a href="/admin/publications-studio">Публикации</a>
-      <a href="/admin/media-library">Файлы</a>
-      <a href="/admin/story-graph">Story Graph</a>
+      <Link href="/admin/publications-studio">Публикации</Link>
+      <Link href="/admin/media-library">Файлы</Link>
+      <Link href="/admin/story-graph">Story Graph</Link>
     </div>
   )
 }

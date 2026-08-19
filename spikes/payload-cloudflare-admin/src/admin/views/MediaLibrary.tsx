@@ -1,5 +1,6 @@
 import { DefaultTemplate } from '@payloadcms/next/templates'
 import { Gutter } from '@payloadcms/ui'
+import Link from 'next/link'
 import type { AdminViewServerProps } from 'payload'
 
 type SearchParams = Record<string, string | string[] | undefined>
@@ -82,8 +83,8 @@ export async function MediaLibrary({ initPageResult, params, searchParams }: Adm
               <p>Media Library поверх R2: поиск, фильтры, повторное использование и where-used.</p>
             </div>
             <div className="fedoria-header-actions">
-              <a className="fedoria-button fedoria-button--ghost" href="/admin/collections/media">Обычный список</a>
-              <a className="fedoria-button" href="/admin/collections/media/create">Загрузить файл</a>
+              <Link className="fedoria-button fedoria-button--ghost" href="/admin/collections/media">Обычный список</Link>
+              <Link className="fedoria-button" href="/admin/collections/media/create">Загрузить файл</Link>
             </div>
           </header>
 
@@ -105,7 +106,7 @@ export async function MediaLibrary({ initPageResult, params, searchParams }: Adm
               <span>Только используемые</span>
             </label>
             <button type="submit">Применить</button>
-            <a href="/admin/media-library">Сбросить</a>
+            <Link href="/admin/media-library">Сбросить</Link>
           </form>
 
           <div className="fedoria-library-summary">
@@ -123,7 +124,7 @@ export async function MediaLibrary({ initPageResult, params, searchParams }: Adm
 
               return (
                 <article className="fedoria-media-card" key={media.id}>
-                  <a className="fedoria-media-card__preview" href={`/admin/collections/media/${media.id}`}>
+                  <Link className="fedoria-media-card__preview" href={`/admin/collections/media/${media.id}`}>
                     {isImage && fileURL ? (
                       <span
                         className="fedoria-media-card__image"
@@ -136,7 +137,7 @@ export async function MediaLibrary({ initPageResult, params, searchParams }: Adm
                     <span className={`fedoria-visibility fedoria-visibility--${media.visibility || 'private'}`}>
                       {media.visibility || 'private'}
                     </span>
-                  </a>
+                  </Link>
                   <div className="fedoria-media-card__body">
                     <div>
                       <strong>{media.label}</strong>
@@ -156,7 +157,7 @@ export async function MediaLibrary({ initPageResult, params, searchParams }: Adm
             }) : (
               <div className="fedoria-empty fedoria-empty--large">
                 <strong>По этим фильтрам файлов нет.</strong>
-                <a href="/admin/media-library">Сбросить фильтры</a>
+                <Link href="/admin/media-library">Сбросить фильтры</Link>
               </div>
             )}
           </section>

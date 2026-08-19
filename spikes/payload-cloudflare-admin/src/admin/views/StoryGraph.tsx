@@ -1,6 +1,7 @@
 import { DefaultTemplate } from '@payloadcms/next/templates'
 import { Gutter } from '@payloadcms/ui'
 import type { Edge } from '@xyflow/react'
+import Link from 'next/link'
 import type { AdminViewServerProps } from 'payload'
 
 import { StoryGraphCanvas, type StoryGraphNode } from '../client/StoryGraphCanvas'
@@ -111,8 +112,8 @@ export async function StoryGraph({ initPageResult, params, searchParams }: Admin
               <p>Read-only карта связей. Форма Event остаётся источником истины; граф нужен для навигации и поиска дыр.</p>
             </div>
             <div className="fedoria-header-actions">
-              <a className="fedoria-button fedoria-button--ghost" href="/admin/collections/events">Обычный список</a>
-              <a className="fedoria-button" href="/admin/collections/events/create">Новый Event</a>
+              <Link className="fedoria-button fedoria-button--ghost" href="/admin/collections/events">Обычный список</Link>
+              <Link className="fedoria-button" href="/admin/collections/events/create">Новый Event</Link>
             </div>
           </header>
 
@@ -128,7 +129,7 @@ export async function StoryGraph({ initPageResult, params, searchParams }: Admin
           ) : (
             <div className="fedoria-empty fedoria-empty--large">
               <strong>Событий пока нет.</strong>
-              <a href="/admin/collections/events/create">Создать первый Event</a>
+              <Link href="/admin/collections/events/create">Создать первый Event</Link>
             </div>
           )}
         </div>

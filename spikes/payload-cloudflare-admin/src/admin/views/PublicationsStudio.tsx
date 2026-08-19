@@ -1,5 +1,6 @@
 import { DefaultTemplate } from '@payloadcms/next/templates'
 import { Gutter } from '@payloadcms/ui'
+import Link from 'next/link'
 import type { AdminViewServerProps } from 'payload'
 
 import { PublicationComposer } from '../components/PublicationComposer'
@@ -77,7 +78,7 @@ export async function PublicationsStudio({
   }
 
   const upcoming = publicationResult.docs
-    .filter((publication) => publication.scheduledAt && new Date(publication.scheduledAt).getTime() >= Date.now())
+    .filter((publication) => publication.workflowStatus === 'scheduled' && publication.scheduledAt)
     .sort((a, b) => new Date(a.scheduledAt || 0).getTime() - new Date(b.scheduledAt || 0).getTime())
     .slice(0, 8)
 
@@ -101,17 +102,17 @@ export async function PublicationsStudio({
               <p>Одна рабочая поверхность: очередь → composer → live preview → schedule → delivery state.</p>
             </div>
             <div className="fedoria-header-actions">
-              <a className="fedoria-button fedoria-button--ghost" href="/admin/collections/publications">Обычный список</a>
-              <a className="fedoria-button" href="/admin/collections/publications/create">Новая публикация</a>
+              <Link className="fedoria-button fedoria-button--ghost" href="/admin/collections/publications">Обычный список</Link>
+              <Link className="fedoria-button" href="/admin/collections/publications/create">Новая публикация</Link>
             </div>
           </header>
 
           <section className="fedoria-stat-row" aria-label="Publication status summary">
             {STATUS_ORDER.map((status) => (
-              <a key={status} href={`/admin/collections/publications?where[workflowStatus][equals]=${status}`} className="fedoria-stat">
+              <Link key={status} href={`/admin/collections/publications?where[workflowStatus][equals]=${status}`} className="fedoria-stat">
                 <span>{status}</span>
                 <strong>{statusCounts.get(status) ?? 0}</strong>
-              </a>
+              </Link>
             ))}
           </section>
 
@@ -125,7 +126,7 @@ export async function PublicationsStudio({
                 {publicationResult.docs.length ? publicationResult.docs.map((publication) => {
                   const active = selected && String(publication.id) === String(selected.id)
                   return (
-                    <a
+                    <Link
                       key={publication.id}
                       className={`fedoria-queue-item${active ? ' is-active' : ''}`}
                       href={`/admin/publications-studio?publication=${publication.id}`}
@@ -138,7 +139,7 @@ export async function PublicationsStudio({
                       </div>
                       <p>{publication.messageText || 'Без текста'}</p>
                       <small>{formatDate(publication.scheduledAt)}</small>
-                    </a>
+                    </Link>
                   )
                 }) : <p className="fedoria-empty">Публикаций пока нет.</p>}
               </div>
@@ -152,7 +153,7 @@ export async function PublicationsStudio({
                       <strong>{selected.title}</strong>
                       <span>Draft composer + Telegram-shaped preview</span>
                     </div>
-                    <a href={`/admin/collections/publications/${selected.id}`}>Полная форма ↗</a>
+                    <Link href={`/admin/collections/publications/${selected.id}`}>Полная форма ↗</Link>
                   </div>
                   <PublicationComposer
                     publicationId={String(selected.id)}
@@ -169,7 +170,7 @@ export async function PublicationsStudio({
               ) : (
                 <div className="fedoria-empty fedoria-empty--large">
                   <strong>Нет публикации для composer.</strong>
-                  <a href="/admin/collections/publications/create">Создать первую</a>
+                  <Link href="/admin/collections/publications/create">Создать первую</Link>
                 </div>
               )}
             </main>
@@ -188,12 +189,12 @@ export async function PublicationsStudio({
               ) : <p className="fedoria-empty">Выбери публикацию.</p>}
 
               <div className="fedoria-calendar-mini">
-                <div className="fedoria-panel__title"><strong>Ближайшие</strong><span>{upcoming.length}</span></div>
+                <div className="fedoria-panel__title"><strong>Scheduled</strong><span>{upcoming.length}</span></div>
                 {upcoming.length ? upcoming.map((publication) => (
-                  <a key={publication.id} href={`/admin/publications-studio?publication=${publication.id}`}>
+                  <Link key={publication.id} href={`/admin/publications-studio?publication=${publication.id}`}>
                     <time>{formatDate(publication.scheduledAt)}</time>
                     <span>{publication.title}</span>
-                  </a>
+                  </Link>
                 )) : <p className="fedoria-empty">Ничего не запланировано.</p>}
               </div>
             </aside>
