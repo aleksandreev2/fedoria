@@ -12,15 +12,17 @@ Disposable architecture evidence for R05 Spike A + D. This directory is intentio
 
 ## Baseline
 
-Pinned from the current official `payloadcms/payload` Cloudflare D1 template at the time of the spike:
+Pinned from the current official `payloadcms/payload` **3.x** Cloudflare D1 template at the time of the spike. The upstream Deploy button points to this branch; the spike does not mix files from `main` with Payload 3.x packages.
 
-- Payload 3.82.1
+- Payload 3.87.0
 - Next.js 16.3.0
 - React 19.2.6
-- @opennextjs/cloudflare 1.11.0
+- @opennextjs/cloudflare 1.20.1
 - Wrangler 4.116.0
-- Node 24.15.0
-- pnpm 11.20.0
+- TypeScript 5.7.3
+- pnpm 11.20.0 for CI execution
+
+pnpm 11 moved dependency build approval to `pnpm-workspace.yaml`; this spike uses an explicit `allowBuilds` map and keeps strict dependency-build checking enabled.
 
 The Wrangler compatibility date is deliberately updated to `2026-08-19` for this new spike. Unlike the upstream template, local D1 is not configured with `remote: true`; this prevents accidental remote data access during an architecture test.
 

@@ -17,8 +17,22 @@ import { Worlds } from './collections/Worlds'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
-const realpath = (value: string) => (fs.existsSync(value) ? fs.realpathSync(value) : undefined)
-const isCLI = process.argv.some((value) => realpath(value)?.endsWith(path.join('payload', 'bin.js')))
+const realpath = (value: string) => {
+  try {
+    return fs.existsSync(value) ? fs.realpathSync(value) : undefined
+  } catch {
+    return undefined
+  }
+}
+
+const isCLI = process.argv.some((value) => {
+  const resolved = realpath(value)
+  if (!resolved) return false
+  return (
+    resolved.endsWith(path.join('payload', 'bin.js')) ||
+    resolved.endsWith(path.join('next', 'dist', 'bin', 'next'))
+  )
+})
 const isProduction = process.env.NODE_ENV === 'production'
 
 const createLog =
@@ -39,7 +53,7 @@ const cloudflareLogger = {
   warn: createLog('warn', console.warn),
   error: createLog('error', console.error),
   fatal: createLog('fatal', console.error),
-  silent: () => {}
+  silent: () => {},
 } as any
 
 const cloudflare =
@@ -51,25 +65,23 @@ export default buildConfig({
   admin: {
     user: Users.slug,
     importMap: { baseDir: path.resolve(dirname) },
-    meta: {
-      titleSuffix: ' — Fedoria Admin Spike'
-    }
+    meta: { titleSuffix: ' — Fedoria Admin Spike' },
   },
   collections: [Users, Worlds, Regions, Events, Media, Publications],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || 'local-spike-only-not-for-deployment',
   telemetry: false,
   typescript: {
-    outputFile: path.resolve(dirname, 'payload-types.ts')
+    outputFile: path.resolve(dirname, 'payload-types.ts'),
   },
   db: sqliteD1Adapter({ binding: cloudflare.env.D1 }),
   logger: isProduction ? cloudflareLogger : undefined,
-  storage: [
+  plugins: [
     r2Storage({
       bucket: cloudflare.env.R2,
-      collections: { media: true }
-    })
-  ]
+      collections: { media: true },
+    }),
+  ],
 })
 
 function getCloudflareContextFromWrangler(): Promise<CloudflareContext> {
@@ -77,7 +89,7 @@ function getCloudflareContextFromWrangler(): Promise<CloudflareContext> {
     ({ getPlatformProxy }) =>
       getPlatformProxy({
         environment: process.env.CLOUDFLARE_ENV,
-        remoteBindings: false
-      } satisfies GetPlatformProxyOptions)
+        remoteBindings: false,
+      } satisfies GetPlatformProxyOptions),
   )
 }
