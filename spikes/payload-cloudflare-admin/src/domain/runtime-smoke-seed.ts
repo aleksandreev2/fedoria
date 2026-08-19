@@ -6,7 +6,7 @@ import { getPlatformProxy } from 'wrangler'
 import config, { disposeCloudflarePlatformProxyForScripts } from '../payload.config'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
-const fixturePath = path.resolve(dirname, '../fixtures/spike-asset.txt')
+const fixturePath = path.resolve(dirname, '../fixtures/spike-asset.svg')
 const statePath = path.resolve(process.cwd(), '.runtime-smoke.json')
 
 const email = 'spike-admin@example.test'
