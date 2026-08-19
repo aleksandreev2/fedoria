@@ -34,7 +34,7 @@ const isCLI = process.argv.some((value) => {
   )
 })
 const isProduction = process.env.NODE_ENV === 'production'
-const dbPushEnabled = process.env.PAYLOAD_DB_PUSH !== 'false'
+const dbPushEnabled = String(process.env.PAYLOAD_DB_PUSH ?? 'true') !== 'false'
 const cloudflareEnvironment = process.env.CLOUDFLARE_ENV
 const cloudflareConfigPath = process.env.CLOUDFLARE_WRANGLER_CONFIG
 const remoteBindingsEnabled = process.env.CLOUDFLARE_REMOTE_BINDINGS === 'true'
