@@ -1,6 +1,7 @@
 {
-  "status": "started",
+  "status": "failure",
   "runId": "32281805023",
   "commit": "b31daf44139bac65f611471c4af49abc46f3913c",
-  "checkedAt": "2026-08-19T17:28:40.271Z"
+  "checkedAt": "2026-08-19T17:28:42.639Z",
+  "cloudflare": null
 }
