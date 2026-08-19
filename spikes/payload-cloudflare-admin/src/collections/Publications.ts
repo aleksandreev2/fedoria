@@ -103,7 +103,10 @@ export const Publications: CollectionConfig = {
         const publication = await req.payload.findByID({
           collection: 'publications',
           id,
-          depth: 0
+          depth: 0,
+          draft: true,
+          req,
+          overrideAccess: false
         })
 
         return Response.json(buildPublicationPreview(publication))
