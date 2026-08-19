@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { getPayload } from 'payload'
-import config from '../payload.config'
+import config, { disposeCloudflarePlatformProxyForScripts } from '../payload.config'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 const fixturePath = path.resolve(dirname, '../fixtures/spike-asset.txt')
@@ -78,4 +78,5 @@ try {
   console.log(`runtime smoke seed created world=${world.id} media=${media.id} publication=${publication.id}`)
 } finally {
   await payload.destroy()
+  await disposeCloudflarePlatformProxyForScripts()
 }
