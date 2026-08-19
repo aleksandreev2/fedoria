@@ -1,0 +1,6 @@
+allowBuilds:
+  esbuild: true
+  rclone.js: true
+  sharp: true
+  unrs-resolver: true
+  workerd: true
