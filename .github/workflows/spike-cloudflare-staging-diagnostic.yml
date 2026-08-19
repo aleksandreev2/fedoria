@@ -13,7 +13,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
   diagnose:
@@ -54,6 +53,32 @@ jobs:
           request r2 "$BASE/r2/buckets?name_contains=$R2_NAME&per_page=100"
           request workers "$BASE/workers/scripts"
           request account-subdomain "$BASE/workers/subdomain"
+
+          D1_ID=$(node - <<'NODE'
+          const fs = require('node:fs')
+          try {
+            const j = JSON.parse(fs.readFileSync('/tmp/d1.json', 'utf8'))
+            const rows = Array.isArray(j.result) ? j.result : []
+            const db = rows.find((row) => row.name === process.env.D1_NAME)
+            process.stdout.write(db?.uuid || db?.id || '')
+          } catch {}
+          NODE
+          )
+
+          if [ -n "$D1_ID" ]; then
+            D1_SCHEMA_CODE=$(curl --silent --show-error --max-time 20 \
+              -H "$AUTH" \
+              -H 'Content-Type: application/json' \
+              --request POST \
+              --data '{"sql":"SELECT name FROM sqlite_master WHERE type = '\''table'\'' ORDER BY name;"}' \
+              --output /tmp/d1-schema.json \
+              --write-out '%{http_code}' \
+              "$BASE/d1/database/$D1_ID/query") || D1_SCHEMA_CODE='000'
+            printf '%s' "$D1_SCHEMA_CODE" > /tmp/d1-schema.status
+          else
+            printf '%s' '000' > /tmp/d1-schema.status
+            printf '%s\n' '{"success":false,"result":[],"errors":[]}' > /tmp/d1-schema.json
+          fi
 
           WORKER_EXISTS=$(node - <<'NODE'
           const fs = require('node:fs')
@@ -101,9 +126,13 @@ jobs:
           const r2 = readJson('r2')
           const workers = readJson('workers')
           const workerSubdomain = readJson('worker-subdomain')
+          const d1Schema = readJson('d1-schema')
           const d1Rows = Array.isArray(d1?.result) ? d1.result : []
           const buckets = Array.isArray(r2?.result?.buckets) ? r2.result.buckets : []
           const scripts = Array.isArray(workers?.result) ? workers.result : []
+          const schemaRows = Array.isArray(d1Schema?.result)
+            ? d1Schema.result.flatMap((entry) => Array.isArray(entry?.results) ? entry.results : [])
+            : []
           const tokenValue = process.env.CLOUDFLARE_API_TOKEN || ''
           const accountValue = process.env.CLOUDFLARE_ACCOUNT_ID || ''
 
@@ -121,6 +150,7 @@ jobs:
             },
             endpoints: {
               d1: endpoint('d1'),
+              d1Schema: endpoint('d1-schema'),
               r2: endpoint('r2'),
               workers: endpoint('workers'),
               accountSubdomain: endpoint('account-subdomain'),
@@ -128,6 +158,7 @@ jobs:
             },
             resources: {
               d1Exists: d1Rows.some((row) => row.name === process.env.D1_NAME),
+              d1TableNames: schemaRows.map((row) => row.name).filter(Boolean),
               r2Exists: buckets.some((row) => row.name === process.env.R2_NAME),
               workerExists: scripts.some((row) => row.id === process.env.WORKER_NAME),
               workersDevEnabled: workerSubdomain?.result?.enabled === true
@@ -148,35 +179,5 @@ jobs:
           for (const key of ['d1', 'r2', 'workers', 'accountSubdomain']) {
             if (!s.endpoints[key].success) process.exit(1)
           }
+          if (s.resources.d1Exists && !s.endpoints.d1Schema.success) process.exit(1)
           NODE
-
-      - name: Report diagnostic to draft PR
-        if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
-          JOB_STATUS: ${{ job.status }}
-        run: |
-          node <<'NODE' > /tmp/cloudflare-pr-comment.json
-          const fs = require('node:fs')
-          let summary = null
-          try { summary = JSON.parse(fs.readFileSync('/tmp/cloudflare-summary.json', 'utf8')) } catch {}
-          const body = [
-            '### Cloudflare credential diagnostic',
-            '',
-            `- Run ID: \`${process.env.GITHUB_RUN_ID}\``,
-            `- Result: **${process.env.JOB_STATUS}**`,
-            '',
-            '```json',
-            JSON.stringify(summary, null, 2),
-            '```',
-          ].join('\n')
-          process.stdout.write(JSON.stringify({ body }))
-          NODE
-
-          curl --fail --silent --show-error --max-time 20 \
-            --request POST \
-            --header "Authorization: Bearer $GH_TOKEN" \
-            --header 'Accept: application/vnd.github+json' \
-            --header 'X-GitHub-Api-Version: 2022-11-28' \
-            --data-binary @/tmp/cloudflare-pr-comment.json \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/1/comments" > /dev/null
