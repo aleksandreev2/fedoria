@@ -1,0 +1,8 @@
+node_modules/
+.next/
+.open-next/
+.env
+.dev.vars
+cloudflare-env.d.ts
+src/payload-types.ts
+src/migrations/

@@ -1,0 +1,52 @@
+{
+  "name": "fedoria-payload-cloudflare-admin-spike",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Disposable Fedoria Payload CMS + Cloudflare D1/R2 acceptance spike",
+  "license": "UNLICENSED",
+  "type": "module",
+  "packageManager": "pnpm@11.20.0",
+  "scripts": {
+    "build": "cross-env NODE_OPTIONS=\"--no-deprecation --max-old-space-size=8000\" payload build",
+    "build:cloudflare": "opennextjs-cloudflare build",
+    "check": "pnpm run generate:types && pnpm run generate:importmap && pnpm run test:domain && pnpm run lint && pnpm run typecheck",
+    "dev": "cross-env NODE_OPTIONS=--no-deprecation next dev",
+    "generate:importmap": "cross-env NODE_OPTIONS=--no-deprecation payload generate:importmap",
+    "generate:types": "pnpm run generate:types:cloudflare && pnpm run generate:types:payload",
+    "generate:types:cloudflare": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "generate:types:payload": "cross-env NODE_OPTIONS=--no-deprecation payload generate:types",
+    "lint": "cross-env NODE_OPTIONS=--no-deprecation eslint .",
+    "payload": "cross-env NODE_OPTIONS=--no-deprecation payload",
+    "test:domain": "tsx src/domain/publications.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@opennextjs/cloudflare": "1.11.0",
+    "@payloadcms/db-d1-sqlite": "3.82.1",
+    "@payloadcms/next": "3.82.1",
+    "@payloadcms/richtext-lexical": "3.82.1",
+    "@payloadcms/storage-r2": "3.82.1",
+    "@payloadcms/ui": "3.82.1",
+    "cross-env": "10.1.0",
+    "dotenv": "16.4.7",
+    "graphql": "16.8.1",
+    "next": "16.3.0",
+    "payload": "3.82.1",
+    "react": "19.2.6",
+    "react-dom": "19.2.6"
+  },
+  "devDependencies": {
+    "@types/node": "24.12.3",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "eslint": "9.16.0",
+    "eslint-config-next": "16.3.0",
+    "tsx": "4.22.4",
+    "typescript": "6.0.3",
+    "wrangler": "4.116.0"
+  },
+  "engines": {
+    "node": ">=24.15.0",
+    "pnpm": ">=11.20.0 <12"
+  }
+}

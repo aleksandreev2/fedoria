@@ -1,0 +1,64 @@
+name: payload-cloudflare-spike
+
+on:
+  pull_request:
+    paths:
+      - 'spikes/payload-cloudflare-admin/**'
+      - '.github/workflows/spike-payload-cloudflare.yml'
+  push:
+    branches:
+      - 'agent/payload-cloudflare-admin-spike'
+    paths:
+      - 'spikes/payload-cloudflare-admin/**'
+      - '.github/workflows/spike-payload-cloudflare.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: spikes/payload-cloudflare-admin
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.3.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6.4.0
+        with:
+          node-version: '24.15.0'
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.20.0 --activate
+          pnpm --version
+
+      - name: Install
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Generate bindings and Payload types
+        run: pnpm run generate:types
+
+      - name: Generate Payload import map
+        run: pnpm run generate:importmap
+
+      - name: Domain tests
+        run: pnpm run test:domain
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Payload / Next build
+        run: pnpm run build
+
+      - name: OpenNext Cloudflare build
+        run: pnpm run build:cloudflare
+
+      - name: Wrangler dry run
+        run: pnpm exec wrangler deploy --dry-run
