@@ -81,7 +81,11 @@ jobs:
           WORLDS_CODE=unset
           LOGIN_CODE=unset
           AUTH_WORLDS_CODE=unset
+          DRAFT_PATCH_CODE=unset
           PREVIEW_CODE=unset
+          PUBLICATIONS_VIEW_CODE=unset
+          MEDIA_VIEW_CODE=unset
+          STORY_VIEW_CODE=unset
           MEDIA_UNAUTH_CODE=unset
           MEDIA_AUTH_CODE=unset
 
@@ -91,7 +95,7 @@ jobs:
 
           debug_failure() {
             echo "Runtime smoke failed during: $CURRENT_CHECK"
-            echo "HTTP codes: admin=$ADMIN_CODE unauth-worlds=$WORLDS_CODE login=$LOGIN_CODE auth-worlds=$AUTH_WORLDS_CODE preview=$PREVIEW_CODE private-media=$MEDIA_UNAUTH_CODE auth-media=$MEDIA_AUTH_CODE"
+            echo "HTTP codes: admin=$ADMIN_CODE unauth-worlds=$WORLDS_CODE login=$LOGIN_CODE auth-worlds=$AUTH_WORLDS_CODE draft-patch=$DRAFT_PATCH_CODE preview=$PREVIEW_CODE publications-view=$PUBLICATIONS_VIEW_CODE media-view=$MEDIA_VIEW_CODE story-view=$STORY_VIEW_CODE private-media=$MEDIA_UNAUTH_CODE auth-media=$MEDIA_AUTH_CODE"
 
             if [ -f /tmp/fedoria-login.json ]; then
               echo 'Login response summary:'
@@ -155,6 +159,7 @@ jobs:
 
           CURRENT_CHECK='admin login'
           LOGIN_CODE=$(curl --silent --show-error --output /tmp/fedoria-login.json --write-out '%{http_code}' \
+            --cookie-jar /tmp/fedoria-cookies.txt \
             --request POST \
             --header 'Content-Type: application/json' \
             --data "{\"email\":\"$EMAIL\",\"password\":\"$PASSWORD\"}" \
@@ -171,15 +176,58 @@ jobs:
           test "$AUTH_WORLDS_CODE" = '200'
           node -e "const fs=require('fs'); const j=JSON.parse(fs.readFileSync('/tmp/fedoria-auth-worlds.json','utf8')); if(j.totalDocs!==1 || j.docs[0].key!=='smoke-world') process.exit(1)"
 
-          CURRENT_CHECK='authenticated publication preview'
           PUBLICATION_ID=$(node -e "const s=require('./.runtime-smoke.json'); process.stdout.write(String(s.publicationId))")
+
+          CURRENT_CHECK='publication composer draft patch contract'
+          DRAFT_PATCH_CODE=$(curl --silent --show-error --output /tmp/fedoria-draft-patch.json --write-out '%{http_code}' \
+            --request PATCH \
+            --header "Authorization: JWT $TOKEN" \
+            --header 'Content-Type: application/json' \
+            --data '{"messageText":"Edited from operator runtime smoke."}' \
+            "http://127.0.0.1:3000/api/publications/$PUBLICATION_ID?draft=true")
+          echo "Publication draft PATCH HTTP $DRAFT_PATCH_CODE"
+          test "$DRAFT_PATCH_CODE" = '200'
+
+          CURRENT_CHECK='authenticated publication preview'
           PREVIEW_CODE=$(curl --silent --show-error --output /tmp/fedoria-preview.json --write-out '%{http_code}' \
             --request POST \
             --header "Authorization: JWT $TOKEN" \
             "http://127.0.0.1:3000/api/publications/$PUBLICATION_ID/test-preview")
           echo "Publication preview HTTP $PREVIEW_CODE"
           test "$PREVIEW_CODE" = '200'
-          node -e "const fs=require('fs'); const j=JSON.parse(fs.readFileSync('/tmp/fedoria-preview.json','utf8')); if(j.dryRun!==true || j.attachmentCount!==1 || j.target?.type!=='world') process.exit(1)"
+          node -e "const fs=require('fs'); const j=JSON.parse(fs.readFileSync('/tmp/fedoria-preview.json','utf8')); if(j.dryRun!==true || j.attachmentCount!==1 || j.target?.type!=='world' || !j.text?.includes('Edited from operator runtime smoke.')) process.exit(1)"
+
+          CURRENT_CHECK='publications operator view'
+          PUBLICATIONS_VIEW_CODE=$(curl --silent --show-error --location --output /tmp/fedoria-publications-view.html --write-out '%{http_code}' \
+            --cookie /tmp/fedoria-cookies.txt \
+            --header "Authorization: JWT $TOKEN" \
+            http://127.0.0.1:3000/admin/publications-studio)
+          echo "Publications Studio HTTP $PUBLICATIONS_VIEW_CODE"
+          test "$PUBLICATIONS_VIEW_CODE" = '200'
+          grep -q 'PUBLICATIONS' /tmp/fedoria-publications-view.html
+          grep -q 'Smoke Publication' /tmp/fedoria-publications-view.html
+          grep -q 'Edited from operator runtime smoke.' /tmp/fedoria-publications-view.html
+
+          CURRENT_CHECK='media operator view'
+          MEDIA_VIEW_CODE=$(curl --silent --show-error --location --output /tmp/fedoria-media-view.html --write-out '%{http_code}' \
+            --cookie /tmp/fedoria-cookies.txt \
+            --header "Authorization: JWT $TOKEN" \
+            http://127.0.0.1:3000/admin/media-library)
+          echo "Media Library HTTP $MEDIA_VIEW_CODE"
+          test "$MEDIA_VIEW_CODE" = '200'
+          grep -q 'FILES' /tmp/fedoria-media-view.html
+          grep -q 'Smoke Asset' /tmp/fedoria-media-view.html
+
+          CURRENT_CHECK='story graph operator view'
+          STORY_VIEW_CODE=$(curl --silent --show-error --location --output /tmp/fedoria-story-view.html --write-out '%{http_code}' \
+            --cookie /tmp/fedoria-cookies.txt \
+            --header "Authorization: JWT $TOKEN" \
+            http://127.0.0.1:3000/admin/story-graph)
+          echo "Story Graph HTTP $STORY_VIEW_CODE"
+          test "$STORY_VIEW_CODE" = '200'
+          grep -q 'NARRATIVE' /tmp/fedoria-story-view.html
+          grep -q 'Smoke Harbor Entry' /tmp/fedoria-story-view.html
+          grep -q 'Smoke Boss' /tmp/fedoria-story-view.html
 
           CURRENT_CHECK='private media unauthenticated access'
           MEDIA_FILENAME=$(node -e "const s=require('./.runtime-smoke.json'); process.stdout.write(s.mediaFilename)")
@@ -200,7 +248,7 @@ jobs:
           cmp src/fixtures/spike-asset.svg /tmp/fedoria-media-auth
 
           CURRENT_CHECK='complete'
-          echo "Runtime smoke passed: admin=$ADMIN_CODE unauth-worlds=$WORLDS_CODE login=$LOGIN_CODE auth-worlds=$AUTH_WORLDS_CODE preview=$PREVIEW_CODE private-media=$MEDIA_UNAUTH_CODE auth-media=$MEDIA_AUTH_CODE"
+          echo "Runtime smoke passed: admin=$ADMIN_CODE unauth-worlds=$WORLDS_CODE login=$LOGIN_CODE auth-worlds=$AUTH_WORLDS_CODE draft-patch=$DRAFT_PATCH_CODE preview=$PREVIEW_CODE publications-view=$PUBLICATIONS_VIEW_CODE media-view=$MEDIA_VIEW_CODE story-view=$STORY_VIEW_CODE private-media=$MEDIA_UNAUTH_CODE auth-media=$MEDIA_AUTH_CODE"
 
       - name: Payload / Next build
         run: pnpm run build

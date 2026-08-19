@@ -31,6 +31,17 @@ try {
     }
   })
 
+  const region = await payload.create({
+    collection: 'regions',
+    data: {
+      name: 'Smoke Harbor',
+      key: 'smoke-harbor',
+      world: world.id,
+      summary: 'Disposable CI region for operator UX.',
+      _status: 'published'
+    }
+  })
+
   const media = await payload.create({
     collection: 'media',
     data: {
@@ -43,19 +54,85 @@ try {
   })
   mediaFilename = media.filename ?? ''
 
+  const bossEvent = await payload.create({
+    collection: 'events',
+    data: {
+      title: 'Smoke Boss',
+      key: 'smoke-boss',
+      world: world.id,
+      region: region.id,
+      kind: 'boss',
+      weight: 1,
+      cooldownRuns: 2,
+      presentation: {
+        text: 'A smoke-test boss blocks the harbor exit.'
+      },
+      choices: [
+        {
+          key: 'finish',
+          label: 'Finish the fight',
+          outcomeText: 'The harbor is safe again.',
+          mutations: [
+            { path: 'flags.smokeBossDefeated', operation: 'set', value: 'true' }
+          ]
+        }
+      ],
+      chronicle: {
+        eligible: true,
+        worldFirstKey: 'smoke-boss-first',
+        announcementTemplate: 'The smoke-test boss was defeated.'
+      },
+      _status: 'published'
+    }
+  })
+
+  const entryEvent = await payload.create({
+    collection: 'events',
+    data: {
+      title: 'Smoke Harbor Entry',
+      key: 'smoke-harbor-entry',
+      world: world.id,
+      region: region.id,
+      kind: 'story',
+      weight: 10,
+      cooldownRuns: 0,
+      presentation: {
+        text: 'The player arrives at Smoke Harbor.',
+        image: media.id
+      },
+      conditions: [
+        { path: 'flags.smokeVisited', operator: 'not_exists' }
+      ],
+      choices: [
+        {
+          key: 'advance',
+          label: 'Walk toward the harbor gate',
+          outcomeText: 'A boss appears ahead.',
+          mutations: [
+            { path: 'flags.smokeVisited', operation: 'set', value: 'true' }
+          ],
+          followUp: bossEvent.id
+        }
+      ],
+      _status: 'published'
+    }
+  })
+
   const publication = await payload.create({
     collection: 'publications',
     draft: true,
     data: {
       title: 'Smoke Publication',
-      workflowStatus: 'draft',
+      workflowStatus: 'scheduled',
       messageText: 'Local authenticated publication preview.',
       parseMode: 'plain',
       attachments: [media.id],
       targetType: 'world',
       telegramTarget: 'smoke-world',
       world: world.id,
+      linkedEvent: entryEvent.id,
       language: 'ru',
+      scheduledAt: '2099-01-01T12:00:00.000Z',
       attempts: 0,
       idempotencyKey: 'runtime-smoke-publication'
     }
@@ -69,8 +146,11 @@ try {
         password,
         userId: user.id,
         worldId: world.id,
+        regionId: region.id,
         mediaId: media.id,
         mediaFilename,
+        entryEventId: entryEvent.id,
+        bossEventId: bossEvent.id,
         publicationId: publication.id
       },
       null,
@@ -78,7 +158,9 @@ try {
     )
   )
 
-  console.log(`runtime smoke seed created world=${world.id} media=${media.id} publication=${publication.id}`)
+  console.log(
+    `runtime smoke seed created world=${world.id} region=${region.id} media=${media.id} events=${entryEvent.id},${bossEvent.id} publication=${publication.id}`
+  )
 } finally {
   await payload.destroy()
   await disposeCloudflarePlatformProxyForScripts()
