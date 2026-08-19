@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { getPayload } from 'payload'
+import { getPlatformProxy } from 'wrangler'
 import config, { disposeCloudflarePlatformProxyForScripts } from '../payload.config'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -12,6 +13,7 @@ const email = 'spike-admin@example.test'
 const password = 'SpikePassword123!'
 
 const payload = await getPayload({ config })
+let mediaFilename = ''
 
 try {
   const user = await payload.create({
@@ -39,6 +41,7 @@ try {
     },
     filePath: fixturePath
   })
+  mediaFilename = media.filename ?? ''
 
   const publication = await payload.create({
     collection: 'publications',
@@ -67,7 +70,7 @@ try {
         userId: user.id,
         worldId: world.id,
         mediaId: media.id,
-        mediaFilename: media.filename,
+        mediaFilename,
         publicationId: publication.id
       },
       null,
@@ -79,4 +82,25 @@ try {
 } finally {
   await payload.destroy()
   await disposeCloudflarePlatformProxyForScripts()
+}
+
+const persistedPlatform = await getPlatformProxy<CloudflareEnv>({
+  persist: true,
+  remoteBindings: false
+})
+
+try {
+  const listing = await persistedPlatform.env.R2.list({ limit: 100 })
+  const keys = listing.objects.map((object) => object.key)
+  console.log(`persisted local R2 keys after proxy restart: ${JSON.stringify(keys)}`)
+
+  if (keys.length === 0) {
+    throw new Error('Payload media metadata was created, but no object persisted to local R2.')
+  }
+
+  if (mediaFilename && !keys.includes(mediaFilename)) {
+    console.log(`media filename ${mediaFilename} is not a bare R2 key; persisted object uses another key`)
+  }
+} finally {
+  await persistedPlatform.dispose()
 }
